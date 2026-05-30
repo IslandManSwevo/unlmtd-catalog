@@ -280,7 +280,7 @@
   <div class="topbar-right">
     <span class="save-indicator" id="save-indicator"></span>
     <button class="admin-btn" id="admin-toggle-btn" onclick="toggleAdminPanel()">⚙ Admin</button>
-    <a class="whatsapp-btn" href="https://wa.me/12420000000" target="_blank">📲 Order Now</a>
+    <a class="whatsapp-btn" href="https://wa.me/12427270271" target="_blank">📲 Order Now</a>
   </div>
 </div>
 
@@ -339,7 +339,7 @@
   <div class="footer-brand">UNLMTD · WHOLESALE</div>
   <div class="footer-contact">
     <div class="footer-label">WhatsApp Orders</div>
-    <div class="footer-number">+1 (242) 000-0000</div>
+    <div class="footer-number">+1 (242) 727-0271</div>
   </div>
 </div>
 
@@ -668,7 +668,7 @@ function renderCard(item, catId, idx) {
         ${item.bulkPrice ? `<div class="bulk-price-tag">Bulk<span>$${item.bulkPrice}</span></div>` : ''}
        </div>`;
 
-  const waNumber  = '12420000000';
+  const waNumber  = '12427270271';
   const waMsg     = encodeURIComponent(`Hi! I'm interested in ordering:\n\n*${item.name}*\n${item.desc}${item.price ? '\nPrice: $' + item.price + ' BSD' : ''}\n${item.sizes ? 'Sizes: ' + item.sizes : ''}\n\nCould you send me more details?`);
   const waUrl     = `https://wa.me/${waNumber}?text=${waMsg}`;
   const supplierBtn = item.supplierLink
