@@ -451,7 +451,7 @@ let activeCat     = CATEGORIES[0].id;
 let activeSub     = {};
 let editingCat    = null;
 let editingIdx    = null;
-let adminPassword = sessionStorage.getItem('unlmtd_admin') || null;
+let adminToken    = sessionStorage.getItem('unlmtd_admin_token') || null;
 
 // ── SAVE INDICATOR ───────────────────────────────────────
 let saveTimer = null;
@@ -476,12 +476,12 @@ async function loadCatalog() {
 }
 
 async function saveCatalog() {
-  if (!adminPassword) return;
+  if (!adminToken) return;
   showSave('saving', '⏳ Saving...');
   try {
     const res = await fetch('/api/catalog', {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPassword },
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
       body:    JSON.stringify(catalog),
     });
     if (res.ok) {
@@ -495,16 +495,16 @@ async function saveCatalog() {
 }
 
 // ── ADMIN AUTH ────────────────────────────────────────────
-function setAdminMode(password) {
-  adminPassword = password;
-  sessionStorage.setItem('unlmtd_admin', password);
+function setAdminMode(token) {
+  adminToken = token;
+  sessionStorage.setItem('unlmtd_admin_token', token);
   document.body.classList.add('admin-mode');
   document.getElementById('admin-toggle-btn').textContent = '🔓 Admin';
 }
 
 function clearAdminMode() {
-  adminPassword = null;
-  sessionStorage.removeItem('unlmtd_admin');
+  adminToken = null;
+  sessionStorage.removeItem('unlmtd_admin_token');
   document.body.classList.remove('admin-mode');
   document.getElementById('admin-toggle-btn').textContent = '⚙ Admin';
 }
@@ -526,15 +526,13 @@ async function submitAdminLogin() {
   const err = document.getElementById('admin-login-error');
   if (!pw) { err.textContent = 'Please enter a password.'; return; }
   err.textContent = '';
-
   try {
-    const res = await fetch('/api/auth', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ password: pw }),
+    const res = await fetch('/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw })
     });
     if (res.ok) {
-      setAdminMode(pw);
+      const j = await res.json();
+      setAdminMode(j.token);
       closeAdminModal();
       buildPages();
     } else {
@@ -568,12 +566,10 @@ async function init() {
   CATEGORIES.forEach(c => { activeSub[c.id] = null; });
 
   // Validate stored password
-  if (adminPassword) {
+  // Validate stored token
+  if (adminToken) {
     try {
-      const res = await fetch('/api/auth', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: adminPassword }),
-      });
+      const res = await fetch('/api/validate', { headers: { 'x-admin-token': adminToken } });
       if (res.ok) {
         document.body.classList.add('admin-mode');
         document.getElementById('admin-toggle-btn').textContent = '🔓 Admin';
@@ -816,24 +812,56 @@ function saveItem() {
     icon:         document.getElementById('edit-icon').value.trim()          || '🏷️',
     sub:          document.getElementById('edit-sub').value,
   };
-
-  if (editingIdx === null) {
-    catalog[editingCat].push(item);
-  } else {
-    catalog[editingCat][editingIdx] = item;
-  }
-
-  refreshPage(editingCat);
-  closeModal();
-  saveCatalog();
+  // Use per-item API
+  (async () => {
+    try {
+      if (editingIdx === null) {
+        // create
+        const res = await fetch('/api/items', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+          body: JSON.stringify({ category: editingCat, sub: item.sub, data: item })
+        });
+        if (!res.ok) { showSave('error', '✕ Save failed'); return; }
+        const j = await res.json();
+        item.id = j.id;
+        catalog[editingCat].push(item);
+      } else {
+        const existing = catalog[editingCat][editingIdx];
+        const id = existing.id;
+        const res = await fetch(`/api/items/${id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+          body: JSON.stringify({ category: editingCat, sub: item.sub, data: item })
+        });
+        if (!res.ok) { showSave('error', '✕ Save failed'); return; }
+        item.id = id;
+        catalog[editingCat][editingIdx] = item;
+      }
+      refreshPage(editingCat);
+      closeModal();
+      showSave('saved', '✓ Saved');
+    } catch (e) {
+      showSave('error', '✕ Connection error');
+    }
+  })();
 }
 
 function deleteItem() {
   if (editingIdx === null) return;
-  catalog[editingCat].splice(editingIdx, 1);
-  refreshPage(editingCat);
-  closeModal();
-  saveCatalog();
+  (async () => {
+    try {
+      const existing = catalog[editingCat][editingIdx];
+      if (existing && existing.id) {
+        const res = await fetch(`/api/items/${existing.id}`, { method: 'DELETE', headers: { 'x-admin-token': adminToken } });
+        if (!res.ok) { showSave('error', '✕ Delete failed'); return; }
+      }
+      catalog[editingCat].splice(editingIdx, 1);
+      refreshPage(editingCat);
+      closeModal();
+      showSave('saved', '✓ Saved');
+    } catch (e) {
+      showSave('error', '✕ Connection error');
+    }
+  })();
 }
 
 // Close modals on backdrop click
