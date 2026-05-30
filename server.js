@@ -46,6 +46,29 @@ async function initDB() {
   `);
 }
 
+// Cleanup expired admin sessions
+async function cleanExpiredSessions() {
+  try {
+    await pool.query('DELETE FROM admin_sessions WHERE expires_at <= NOW()');
+  } catch (err) {
+    console.error('Session cleanup error', err.message);
+  }
+}
+
+// Basic validation helpers
+function validateItemPayload(obj) {
+  if (!obj || typeof obj !== 'object') return 'Payload must be an object';
+  if (!obj.category || typeof obj.category !== 'string') return 'Missing or invalid "category"';
+  if (!obj.data || typeof obj.data !== 'object') return 'Missing or invalid "data"';
+  if ('name' in obj.data && typeof obj.data.name !== 'string') return 'Item.name must be a string';
+  if ('price' in obj.data) {
+    const p = Number(obj.data.price);
+    if (Number.isNaN(p)) return 'Item.price must be a number';
+  }
+  return null;
+}
+
+
 // ── AUTH MIDDLEWARE ───────────────────────────────────────
 // Admin middleware: accept x-admin-token (preferred) or fallback to raw password header
 async function requireAdmin(req, res, next) {
@@ -97,6 +120,16 @@ app.get('/api/catalog', async (req, res) => {
 app.post('/api/catalog', requireAdmin, async (req, res) => {
   const payload = req.body || {};
   try {
+    // basic validation of structure
+    if (typeof payload !== 'object' || Array.isArray(payload)) return res.status(400).json({ error: 'Invalid catalog payload' });
+    for (const [cat, arr] of Object.entries(payload)) {
+      if (!Array.isArray(arr)) return res.status(400).json({ error: `Category ${cat} must contain an array` });
+      for (const it of arr) {
+        const v = validateItemPayload(Object.assign({ category: cat }, { data: it }));
+        if (v) return res.status(400).json({ error: v });
+      }
+    }
+
     await pool.query('BEGIN');
     // clear items
     await pool.query('DELETE FROM items');
@@ -135,7 +168,8 @@ app.get('/api/items', async (req, res) => {
 // Create item
 app.post('/api/items', requireAdmin, async (req, res) => {
   const { category, sub, data } = req.body || {};
-  if (!category || !data) return res.status(400).json({ error: 'Missing fields' });
+  const v = validateItemPayload({ category, data });
+  if (v) return res.status(400).json({ error: v });
   try {
     const r = await pool.query('INSERT INTO items (category, sub, data) VALUES ($1, $2, $3) RETURNING id', [category, sub || null, data]);
     return res.status(201).json({ id: r.rows[0].id });
@@ -149,7 +183,8 @@ app.post('/api/items', requireAdmin, async (req, res) => {
 app.put('/api/items/:id', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { category, sub, data } = req.body || {};
-  if (!id || !data) return res.status(400).json({ error: 'Missing fields' });
+  const v = validateItemPayload({ category, data });
+  if (!id || v) return res.status(400).json({ error: !id ? 'Missing id' : v });
   try {
     await pool.query('UPDATE items SET category = $1, sub = $2, data = $3, updated_at = NOW() WHERE id = $4', [category, sub || null, data, id]);
     return res.json({ success: true });
@@ -192,6 +227,30 @@ app.get('/api/validate', requireAdmin, async (req, res) => {
   return res.json({ ok: true });
 });
 
+// Logout / revoke a token
+app.post('/api/logout', async (req, res) => {
+  const token = req.headers['x-admin-token'] || (req.body && req.body.token);
+  // If no token provided, allow password-based revoke (admin wants to clear all?)
+  if (!token) {
+    const pw = req.headers['x-admin-password'] || (req.body && req.body.password);
+    if (!pw || pw !== process.env.ADMIN_PASSWORD) return res.status(400).json({ error: 'Missing token or valid password' });
+    try {
+      await pool.query('DELETE FROM admin_sessions');
+      return res.json({ success: true });
+    } catch (err) {
+      console.error('Logout error', err.message);
+      return res.status(500).json({ error: 'Failed' });
+    }
+  }
+  try {
+    await pool.query('DELETE FROM admin_sessions WHERE token = $1', [token]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Logout error', err.message);
+    return res.status(500).json({ error: 'Failed' });
+  }
+});
+
 // Validate admin password
 app.post('/api/auth', (req, res) => {
   const { password } = req.body;
@@ -205,6 +264,10 @@ app.post('/api/auth', (req, res) => {
 // ── START ─────────────────────────────────────────────────
 initDB()
   .then(() => {
+    // run cleanup at startup and schedule hourly cleanup
+    cleanExpiredSessions().catch(() => {});
+    setInterval(cleanExpiredSessions, 1000 * 60 * 60); // hourly
+
     app.listen(PORT, () => console.log(`UNLMTD running on port ${PORT}`));
   })
   .catch(err => {
