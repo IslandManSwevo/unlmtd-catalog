@@ -1,0 +1,87 @@
+{
+  "jeans": [
+    { "name": "Slim Fit Stretch Jeans", "desc": "Available in black, blue & grey wash", "price": "45.00", "por": false, "badge": "BESTSELLER", "sizes": "28–38", "img": "", "icon": "👖", "sub": "Jeans" },
+    { "name": "Classic Straight Jeans", "desc": "Mid-rise, medium wash denim", "price": "", "por": true, "badge": "", "sizes": "28–40", "img": "", "icon": "👖", "sub": "Jeans" },
+    { "name": "Cargo Pants", "desc": "6-pocket utility style, relaxed fit", "price": "52.00", "por": false, "badge": "NEW", "sizes": "S–XL", "img": "", "icon": "👖", "sub": "Cargo & Utility" },
+    { "name": "Utility Work Pants", "desc": "Durable canvas, multiple pockets", "price": "48.00", "por": false, "badge": "", "sizes": "S–XXL", "img": "", "icon": "👖", "sub": "Cargo & Utility" },
+    { "name": "Denim Shorts", "desc": "Cut-off style, frayed hem, 3 washes", "price": "28.00", "por": false, "badge": "SUMMER", "sizes": "28–38", "img": "", "icon": "👖", "sub": "Shorts" },
+    { "name": "Athletic Shorts", "desc": "Quick-dry, drawstring waist", "price": "20.00", "por": false, "badge": "", "sizes": "S–XXL", "img": "", "icon": "👖", "sub": "Shorts" },
+    { "name": "Jogger Pants", "desc": "Fleece-lined, tapered fit, 4 colours", "price": "35.00", "por": false, "badge": "", "sizes": "S–XXL", "img": "", "icon": "👖", "sub": "Joggers & Sweats" },
+    { "name": "Dress Trousers", "desc": "Slim cut, polyester blend, charcoal & black", "price": "55.00", "por": false, "badge": "", "sizes": "28–38", "img": "", "icon": "👖", "sub": "Dress Pants" }
+  ],
+  "mens": [
+    { "name": "Linen Button-Down", "desc": "Breathable summer weight, 4 colours", "price": "38.00", "por": false, "badge": "SUMMER", "sizes": "S–XXL", "img": "", "icon": "👔", "sub": "Shirts & Tops" },
+    { "name": "Polo Shirt", "desc": "Pique cotton, embroidered chest logo", "price": "30.00", "por": false, "badge": "", "sizes": "S–XXL", "img": "", "icon": "👔", "sub": "Shirts & Tops" },
+    { "name": "Flannel Shirt", "desc": "Brushed cotton, plaid pattern, 5 colours", "price": "35.00", "por": false, "badge": "", "sizes": "S–XXL", "img": "", "icon": "👔", "sub": "Shirts & Tops" },
+    { "name": "Graphic Tee", "desc": "Heavyweight 220gsm, oversize fit", "price": "22.00", "por": false, "badge": "BULK DEAL", "sizes": "S–XXL", "img": "", "icon": "👔", "sub": "T-Shirts" },
+    { "name": "Plain Crew Tee", "desc": "Soft cotton, 10 colour options", "price": "18.00", "por": false, "badge": "", "sizes": "S–XXL", "img": "", "icon": "👔", "sub": "T-Shirts" },
+    { "name": "Pullover Hoodie", "desc": "Fleece lining, kangaroo pocket, 6 colours", "price": "45.00", "por": false, "badge": "", "sizes": "S–XXL", "img": "", "icon": "👔", "sub": "Hoodies & Sweaters" },
+    { "name": "Zip-Up Sweater", "desc": "Knit finish, casual fit", "price": "42.00", "por": false, "badge": "", "sizes": "S–XXL", "img": "", "icon": "👔", "sub": "Hoodies & Sweaters" },
+    { "name": "Windbreaker Jacket", "desc": "Lightweight, packable, 4 colours", "price": "60.00", "por": false, "badge": "NEW", "sizes": "S–XXL", "img": "", "icon": "👔", "sub": "Jackets & Outerwear" },
+    { "name": "Dress Shirt", "desc": "Cotton-blend, slim fit, 6 colours", "price": "", "por": true, "badge": "", "sizes": "S–XXL", "img": "", "icon": "👔", "sub": "Suits & Formal" }
+  ],
+  "womens": [
+    { "name": "Ribbed Crop Top", "desc": "Stretch knit, 8 colour options", "price": "22.00", "por": false, "badge": "", "sizes": "XS–XL", "img": "", "icon": "👗", "sub": "Tops & Blouses" },
+    { "name": "Satin Blouse", "desc": "Relaxed fit, V-neck, 5 colours", "price": "35.00", "por": false, "badge": "NEW", "sizes": "XS–XL", "img": "", "icon": "👗", "sub": "Tops & Blouses" },
+    { "name": "Ribbed Midi Dress", "desc": "Stretch knit, sleeveless", "price": "", "por": true, "badge": "", "sizes": "XS–XL", "img": "", "icon": "👗", "sub": "Dresses" },
+    { "name": "Sundress", "desc": "Flowy, floral print, adjustable straps", "price": "40.00", "por": false, "badge": "SUMMER", "sizes": "XS–XL", "img": "", "icon": "👗", "sub": "Dresses" },
+    { "name": "Maxi Dress", "desc": "Jersey fabric, 4 neutral colours", "price": "48.00", "por": false, "badge": "", "sizes": "XS–XL", "img": "", "icon": "👗", "sub": "Dresses" },
+    { "name": "Crop Linen Set", "desc": "Top + shorts co-ord, 5 colour options", "price": "55.00", "por": false, "badge": "SUMMER", "sizes": "XS–XL", "img": "", "icon": "👗", "sub": "Sets & Co-ords" },
+    { "name": "Wide Leg Trousers", "desc": "High waist, tailored finish, 3 colours", "price": "48.00", "por": false, "badge": "NEW", "sizes": "XS–XL", "img": "", "icon": "👗", "sub": "Sets & Co-ords" },
+    { "name": "Mini Skirt", "desc": "Denim, 3 washes, zip closure", "price": "30.00", "por": false, "badge": "", "sizes": "XS–XL", "img": "", "icon": "👗", "sub": "Skirts" },
+    { "name": "Sports Leggings", "desc": "High waist, 4-way stretch, 6 colours", "price": "32.00", "por": false, "badge": "POPULAR", "sizes": "XS–XL", "img": "", "icon": "👗", "sub": "Activewear" }
+  ],
+  "shoes": [
+    { "name": "Low-Top Sneakers", "desc": "Clean canvas upper, rubber sole", "price": "58.00", "por": false, "badge": "", "sizes": "6–13", "img": "", "icon": "👟", "sub": "Sneakers" },
+    { "name": "High-Top Basketball", "desc": "Padded ankle collar, 6 colourways", "price": "75.00", "por": false, "badge": "HOT", "sizes": "6–13", "img": "", "icon": "👟", "sub": "Sneakers" },
+    { "name": "Running Shoe", "desc": "Cushioned sole, mesh upper, 4 colours", "price": "65.00", "por": false, "badge": "", "sizes": "6–13", "img": "", "icon": "👟", "sub": "Sneakers" },
+    { "name": "Chelsea Boots", "desc": "Faux leather, elastic side panel", "price": "80.00", "por": false, "badge": "", "sizes": "6–13", "img": "", "icon": "👟", "sub": "Boots" },
+    { "name": "Ankle Boots (Women's)", "desc": "Block heel, zip-up, 3 colours", "price": "", "por": true, "badge": "", "sizes": "5–11", "img": "", "icon": "👟", "sub": "Boots" },
+    { "name": "Casual Loafers", "desc": "Slip-on, faux leather, unisex", "price": "62.00", "por": false, "badge": "", "sizes": "6–12", "img": "", "icon": "👟", "sub": "Casual & Loafers" },
+    { "name": "Pointed Heels", "desc": "Stiletto, 3 heights, 4 colours", "price": "", "por": true, "badge": "NEW", "sizes": "5–11", "img": "", "icon": "👟", "sub": "Heels" }
+  ],
+  "slides": [
+    { "name": "Foam Slides", "desc": "Thick sole, quick-dry, 8 colours", "price": "18.00", "por": false, "badge": "BULK DEAL", "sizes": "6–13", "img": "", "icon": "🩴", "sub": "Foam Slides" },
+    { "name": "Cloud Slides", "desc": "Extra thick EVA foam, ultra-soft", "price": "22.00", "por": false, "badge": "HOT", "sizes": "6–13", "img": "", "icon": "🩴", "sub": "Foam Slides" },
+    { "name": "Double Strap Sandals", "desc": "Velcro closure, unisex", "price": "25.00", "por": false, "badge": "", "sizes": "5–13", "img": "", "icon": "🩴", "sub": "Strap Sandals" },
+    { "name": "Gladiator Sandals", "desc": "Lace-up ankle, flat sole", "price": "30.00", "por": false, "badge": "", "sizes": "5–11", "img": "", "icon": "🩴", "sub": "Strap Sandals" },
+    { "name": "Platform Slippers", "desc": "Womens, 4cm platform, 4 colours", "price": "28.00", "por": false, "badge": "NEW", "sizes": "5–10", "img": "", "icon": "🩴", "sub": "Platform" },
+    { "name": "Fluffy House Slippers", "desc": "Plush lining, non-slip sole", "price": "15.00", "por": false, "badge": "", "sizes": "5–13", "img": "", "icon": "🩴", "sub": "House Slippers" },
+    { "name": "Flip Flops", "desc": "Rubber sole, 10 colour options", "price": "12.00", "por": false, "badge": "BULK DEAL", "sizes": "5–13", "img": "", "icon": "🩴", "sub": "Beach Sandals" }
+  ],
+  "bags": [
+    { "name": "Crossbody Bag", "desc": "Faux leather, adjustable strap, 6 colours", "price": "35.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "👜", "sub": "Crossbody Bags" },
+    { "name": "Mini Crossbody", "desc": "Compact, chain strap, 4 colours", "price": "28.00", "por": false, "badge": "NEW", "sizes": "One Size", "img": "", "icon": "👜", "sub": "Crossbody Bags" },
+    { "name": "Backpack", "desc": "Water-resistant, laptop sleeve, 3 colours", "price": "50.00", "por": false, "badge": "POPULAR", "sizes": "One Size", "img": "", "icon": "👜", "sub": "Backpacks" },
+    { "name": "Mini Backpack", "desc": "Casual style, 5 colour options", "price": "35.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "👜", "sub": "Backpacks" },
+    { "name": "Tote Bag", "desc": "Canvas, reinforced handles, 4 colours", "price": "25.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "👜", "sub": "Totes & Shoppers" },
+    { "name": "Shopper Bag", "desc": "Large capacity, woven style", "price": "30.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "👜", "sub": "Totes & Shoppers" },
+    { "name": "Leather Belt", "desc": "Genuine PU leather, 3 widths, 4 colours", "price": "20.00", "por": false, "badge": "", "sizes": "S / M / L", "img": "", "icon": "👜", "sub": "Wallets & Belts" },
+    { "name": "Bifold Wallet", "desc": "Slim profile, card slots, 3 colours", "price": "18.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "👜", "sub": "Wallets & Belts" },
+    { "name": "Snapback Cap", "desc": "Embroidered logo, 6 colours", "price": "22.00", "por": false, "badge": "NEW", "sizes": "One Size", "img": "", "icon": "🧢", "sub": "Hats & Caps" }
+  ],
+  "watches": [
+    { "name": "Classic Leather Strap Watch", "desc": "Minimalist dial, genuine PU leather band, 3 colours", "price": "45.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Casual & Everyday" },
+    { "name": "Stainless Mesh Watch", "desc": "Slim profile, mesh band, silver & gold tone", "price": "55.00", "por": false, "badge": "POPULAR", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Casual & Everyday" },
+    { "name": "Chronograph Watch", "desc": "Multi-dial face, silicone strap, 4 colours", "price": "65.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Casual & Everyday" },
+    { "name": "Sport Running Watch", "desc": "Water-resistant, stopwatch, rubber strap", "price": "38.00", "por": false, "badge": "BULK DEAL", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Sport & Fitness" },
+    { "name": "Digital Sport Watch", "desc": "LED display, alarm, water resistant 50m", "price": "30.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Sport & Fitness" },
+    { "name": "Dress Watch", "desc": "Roman numeral dial, slim case, gold/silver", "price": "", "por": true, "badge": "NEW", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Dress & Formal" },
+    { "name": "Square Face Dress Watch", "desc": "Vintage-inspired, leather strap", "price": "70.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Dress & Formal" },
+    { "name": "Smart Watch", "desc": "Fitness tracking, notifications, 2 strap colours", "price": "", "por": true, "badge": "NEW", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Smart & Digital" },
+    { "name": "Ladies' Rose Gold Watch", "desc": "Slim case, rhinestone markers, mesh band", "price": "48.00", "por": false, "badge": "POPULAR", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Ladies' Watches" },
+    { "name": "Ladies' Ceramic Watch", "desc": "White ceramic band, mother-of-pearl dial", "price": "", "por": true, "badge": "", "sizes": "One Size", "img": "", "icon": "⌚", "sub": "Ladies' Watches" }
+  ],
+  "eyewear": [
+    { "name": "Classic Aviator Shades", "desc": "Metal frame, UV400, 6 lens colours", "price": "22.00", "por": false, "badge": "POPULAR", "sizes": "One Size", "img": "", "icon": "🕶️", "sub": "Sunglasses" },
+    { "name": "Oversized Square Shades", "desc": "Thick acetate frame, polarised lens", "price": "28.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "🕶️", "sub": "Sunglasses" },
+    { "name": "Rimless Sunglasses", "desc": "Minimalist, UV400, silver & gold bridge", "price": "25.00", "por": false, "badge": "NEW", "sizes": "One Size", "img": "", "icon": "🕶️", "sub": "Sunglasses" },
+    { "name": "Cat-Eye Sunglasses", "desc": "Women's, retro style, 5 colours", "price": "20.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "🕶️", "sub": "Sunglasses" },
+    { "name": "Round Fashion Frames", "desc": "Clear lens, vintage round frame, 4 colours", "price": "18.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "🕶️", "sub": "Fashion Frames" },
+    { "name": "Rectangle Thick Frame", "desc": "Bold acetate, clear lens, unisex", "price": "20.00", "por": false, "badge": "HOT", "sizes": "One Size", "img": "", "icon": "🕶️", "sub": "Fashion Frames" },
+    { "name": "Sport Wrap Shades", "desc": "Rubberized frame, anti-slip, 3 colours", "price": "30.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "🕶️", "sub": "Sport Shades" },
+    { "name": "Cycling Sunglasses", "desc": "Interchangeable lenses, UV400", "price": "35.00", "por": false, "badge": "", "sizes": "One Size", "img": "", "icon": "🕶️", "sub": "Sport Shades" },
+    { "name": "Reading Glasses +1.0–+3.5", "desc": "Lightweight frame, multiple strengths available", "price": "15.00", "por": false, "badge": "BULK DEAL", "sizes": "+1.0 / +1.5 / +2.0 / +2.5 / +3.0 / +3.5", "img": "", "icon": "🕶️", "sub": "Reading Glasses" },
+    { "name": "Blue Light Blocking Glasses", "desc": "Clear lens, anti-fatigue, unisex frame", "price": "20.00", "por": false, "badge": "NEW", "sizes": "One Size", "img": "", "icon": "🕶️", "sub": "Blue Light Glasses" }
+  ]
+}
