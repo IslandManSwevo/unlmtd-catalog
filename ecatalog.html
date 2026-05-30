@@ -510,15 +510,17 @@ function clearAdminMode() {
 }
 
 function toggleAdminPanel() {
-  if (adminPassword) {
+  // Use adminToken (session state) — adminPassword is undefined and caused a ReferenceError
+  if (adminToken) {
     if (confirm('Log out of admin mode?')) {
       clearAdminMode();
       buildPages();
     }
-  } else {
-    document.getElementById('admin-modal').classList.add('open');
-    setTimeout(() => document.getElementById('admin-pw-input').focus(), 100);
+    return;
   }
+  // show login modal when not authenticated
+  document.getElementById('admin-modal').classList.add('open');
+  setTimeout(() => document.getElementById('admin-pw-input').focus(), 100);
 }
 
 async function submitAdminLogin() {
