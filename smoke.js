@@ -1,9 +1,13 @@
-const URL = 'https://unlmtdwholesale.up.railway.app';
-const ADMIN_PASSWORD = 'aintgodgood8587';
+const URL = process.argv[2] || 'https://unlmtdwholesale.up.railway.app';
+const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD || process.argv[3];
 
 async function go(){
   const out = (label, obj)=> console.log('\n== ' + label + ' ==\n', typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2));
   try{
+    if(!ADMIN_PASSWORD){
+      console.error('ERROR: missing admin password. Set SMOKE_ADMIN_PASSWORD or pass it as the second CLI arg.');
+      process.exit(1);
+    }
     const catalogRes = await fetch(URL + '/api/catalog');
     const catalog = await catalogRes.text();
     out('GET /api/catalog', catalog);
