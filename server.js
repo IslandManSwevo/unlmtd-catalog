@@ -262,15 +262,51 @@ app.post('/api/auth', (req, res) => {
 });
 
 // ── START ─────────────────────────────────────────────────
+let server = null;
+
+async function shutdown(signal) {
+  try {
+    console.log(`Shutdown initiated (${signal})`);
+    if (server) {
+      // stop accepting new connections
+      server.close(() => console.log('Server closed'));
+    }
+    // allow a short grace period for connections to finish
+    setTimeout(async () => {
+      try {
+        await pool.end();
+        console.log('Database pool closed');
+      } catch (e) {
+        console.error('Error closing DB pool', e && e.message ? e.message : e);
+      }
+      process.exit(0);
+    }, 500);
+  } catch (e) {
+    console.error('Error during shutdown', e && e.message ? e.message : e);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception', err && err.stack ? err.stack : err);
+  shutdown('uncaughtException');
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection', reason);
+  shutdown('unhandledRejection');
+});
+
 initDB()
   .then(() => {
     // run cleanup at startup and schedule hourly cleanup
     cleanExpiredSessions().catch(() => {});
     setInterval(cleanExpiredSessions, 1000 * 60 * 60); // hourly
 
-    app.listen(PORT, () => console.log(`UNLMTD running on port ${PORT}`));
+    server = app.listen(PORT, () => console.log(`UNLMTD running on port ${PORT}`));
   })
   .catch(err => {
-    console.error('DB init failed:', err.message);
+    console.error('DB init failed:', err && err.message ? err.message : err);
     process.exit(1);
   });
