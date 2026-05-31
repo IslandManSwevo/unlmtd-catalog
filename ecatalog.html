@@ -502,5 +502,88 @@ setAdminMode = function(token){ _setAdminOrig(token); const pending = sessionSto
 // init
 init();
 </script>
+<!-- IMPORTER SNIPPET: inserted from ecatalog.importer.html (bookmarklet + import modal + helpers) -->
+<!-- BEGIN IMPORTER -->
+<div style="display:none">
+  <!-- bookmarklet & modals are injected by the script below when in admin mode -->
+</div>
+<script>
+// Importer merged from ecatalog.importer.html
+const IMPORT_BASE = location.origin || 'https://unlmtdwholesale.up.railway.app';
+function buildBookmarklet(){
+  const base = IMPORT_BASE;
+  const code = `javascript:(function(){try{var n=document.querySelector('title')?document.querySelector('title').innerText:document.title;var im=(document.querySelector('img')?document.querySelector('img').src:'');var d=(document.querySelector('meta[name="description"]')?document.querySelector('meta[name="description"]').content:'');var src=location.href;window.open('${base}/?_import=1&n='+encodeURIComponent(n)+'&im='+encodeURIComponent(im)+'&d='+encodeURIComponent(d)+'&src='+encodeURIComponent(src),'_blank')}catch(e){alert('Import failed:'+e)}})();`.replace(/\s+/g,' ').trim();
+  return code;
+}
+function openBookmarkletModal(){
+  // create modal if not present
+  if(!document.getElementById('bookmarklet-modal')){
+    const html = `
+    <div class="modal-backdrop open" id="bookmarklet-modal">
+      <div class="modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><strong>📥 Supplier Importer</strong><button onclick="document.getElementById('bookmarklet-modal').remove()">✕</button></div>
+        <p>Drag the button to your bookmarks bar. When on a supplier product page, click the bookmark to open the import preview here.</p>
+        <div style="margin-top:10px;"><a id="bookmarklet-link-2" class="btn" href="#">📥 Add to UNLMTD</a></div>
+        <div style="margin-top:12px;text-align:right"><button onclick="document.getElementById('bookmarklet-modal').remove()">Close</button></div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('bookmarklet-link-2').href = buildBookmarklet();
+  }
+}
+function openImportModal(data){
+  if(!document.getElementById('import-modal')){
+    const html = `
+    <div class="modal-backdrop open" id="import-modal">
+      <div class="modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><strong>📥 Import Product</strong><button onclick="document.getElementById('import-modal').remove()">✕</button></div>
+        <div>
+          <div id="import-img-preview"></div>
+          <label>Item Name</label>
+          <input id="import-name" class="field-input" />
+          <label style="margin-top:8px">Description</label>
+          <input id="import-desc" class="field-input" />
+          <label style="margin-top:8px">Image URL</label>
+          <input id="import-img" class="field-input" oninput="previewImportImg()" />
+          <label style="margin-top:8px">Supplier Link (private)</label>
+          <input id="import-src" class="field-input" />
+        </div>
+        <div style="margin-top:12px;text-align:right">
+          <button onclick="document.getElementById('import-modal').remove()">Cancel</button>
+          <button onclick="saveImportedItem()" style="margin-left:8px">Add to Catalog</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  document.getElementById('import-name').value = data.name || '';
+  document.getElementById('import-desc').value = data.desc || '';
+  document.getElementById('import-img').value = data.img || '';
+  document.getElementById('import-src').value = data.src || '';
+  previewImportImg();
+}
+function previewImportImg(){ const v = document.getElementById('import-img').value; const el = document.getElementById('import-img-preview'); if(el) el.innerHTML = v?`<img src="${v}" style="max-width:100%">`:''; }
+async function saveImportedItem(){
+  const token = sessionStorage.getItem('unlmtd_admin_token') || null;
+  if(!token){
+    const pending = { name: document.getElementById('import-name').value, desc: document.getElementById('import-desc').value, img: document.getElementById('import-img').value, src: document.getElementById('import-src').value };
+    sessionStorage.setItem('unlmtd_pending_import', JSON.stringify(pending));
+    const modal = document.getElementById('import-modal'); if(modal) modal.remove();
+    // trigger admin modal in page
+    const adminModal = document.getElementById('admin-modal'); if(adminModal) adminModal.classList.add('open');
+    return;
+  }
+  const payload = { category: 'uncategorized', sub: '', data: { name: document.getElementById('import-name').value, desc: document.getElementById('import-desc').value, img: document.getElementById('import-img').value, supplierLink: document.getElementById('import-src').value } };
+  try{
+    const res = await fetch('/api/items', { method: 'POST', headers: {'Content-Type':'application/json','x-admin-token': token}, body: JSON.stringify(payload) });
+    const j = await res.json();
+    if(j && j.id){ const modal = document.getElementById('import-modal'); if(modal) modal.remove(); await loadCatalog(); buildPages(); updateTotalCount(); }
+    else alert('Import failed');
+  }catch(e){ alert('Import save failed'); }
+}
+function checkImportParams(){ const params = new URLSearchParams(location.search); if(params.has('_import')){ const data = { name: params.get('n')||'', img: params.get('im')||'', desc: params.get('d')||'', src: params.get('src')||'' }; openImportModal(data); } }
+if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', checkImportParams); } else { checkImportParams(); }
+</script>
+<!-- END IMPORTER -->
 </body>
 </html>
