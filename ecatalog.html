@@ -276,9 +276,25 @@
   .footer-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 4px; }
   .footer-number { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 2px; color: var(--gold); }
 
+  /* ── SEARCH ── */
+  .search-input { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--off-white); padding: 7px 14px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 1px; outline: none; width: 190px; transition: border-color 0.2s; }
+  .search-input::placeholder { color: var(--text-dim); }
+  .search-input:focus { border-color: var(--gold); }
+
+  /* ── SOLD OUT ── */
+  .card-sold-out { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.52); display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 1; }
+  .sold-out-banner { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: #ff4444; border: 2px solid #ff4444; padding: 5px 14px; }
+  .card-actions.is-sold-out { opacity: 0.32; pointer-events: none; }
+
+  /* ── SORT ── */
+  .sort-select { background: transparent; border: 1px solid rgba(255,255,255,0.08); color: var(--text-dim); padding: 4px 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 1px; cursor: pointer; outline: none; }
+  .sort-select:focus, .sort-select:hover { border-color: var(--gold); color: var(--off-white); }
+  .sort-select option { background: #1c1c1c; color: var(--off-white); }
+
   @media (max-width: 600px) {
     .topbar { padding: 0 16px; }
     .topbar-meta { display: none; }
+    .search-input { width: 110px; font-size: 11px; }
     .hero { padding: 36px 16px 28px; }
     .nav-wrap { padding: 0 16px; }
     .main { padding: 28px 16px 60px; }
@@ -293,6 +309,7 @@
 <div class="topbar">
   <div class="brand">UNLMTD</div>
   <div class="topbar-meta">Wholesale Catalog · 2025</div>
+  <input class="search-input" id="search-input" type="text" placeholder="🔍 Search items..." oninput="onSearch(this.value)" autocomplete="off">
   <div class="topbar-right">
     <span class="save-indicator" id="save-indicator"></span>
     <button class="admin-btn" id="bookmarklet-btn" onclick="openBookmarkletModal()" style="display:none;">📥 Importer</button>
@@ -343,6 +360,7 @@
       Cost $<input id="markup-base" type="number" min="1" value="25" oninput="updateMarkup(document.getElementById('markup-slider').value)" style="width:64px;background:var(--mid);border:1px solid rgba(255,255,255,0.12);border-bottom-color:var(--gold);color:var(--off-white);font-family:'Barlow',sans-serif;font-size:13px;padding:3px 6px;outline:none;text-align:center;"> → sell at <strong id="markup-sell">$35.00</strong> BSD &nbsp;·&nbsp; Profit: <strong id="markup-profit">$10.00</strong>
     </div>
   </div>
+  <div id="search-results" style="display:none;"></div>
   <div id="pages-container">
     <div class="catalog-loading">
       <div class="loading-spinner"></div>
@@ -474,6 +492,13 @@
           <div class="toggle-track"></div>
         </label>
       </div>
+      <div class="toggle-row">
+        <div class="toggle-label">🚫 Sold Out (disables order button)</div>
+        <label class="toggle">
+          <input type="checkbox" id="edit-sold-out">
+          <div class="toggle-track"></div>
+        </label>
+      </div>
       <div class="field-row" id="price-field-group">
         <div class="field-group">
           <label class="field-label">Retail Price (BSD)</label>
@@ -496,6 +521,7 @@
         <label class="field-label">Photos (swipe order)</label>
         <div id="edit-imgs-list"></div>
         <button type="button" onclick="addEditImgField('')" class="btn-secondary" style="margin-top:8px;width:100%;padding:8px;font-size:10px;letter-spacing:1.5px;">＋ Add Photo URL</button>
+        <div id="edit-img-preview-strip" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;"></div>
       </div>
       <div class="field-group">
         <label class="field-label">🔗 Supplier Link (private — your eyes only)</label>
@@ -527,10 +553,14 @@ const CATEGORIES = [
   { id: 'eyewear', label: "Glasses & Shades",    icon: "🕶️", subs: ["Sunglasses", "Fashion Frames", "Sport Shades", "Reading Glasses", "Blue Light Glasses"] },
 ];
 
+const WA_NUMBER = '12427270271';
+
 // ── STATE ────────────────────────────────────────────────
 let catalog       = {};
 let activeCat     = CATEGORIES[0].id;
 let activeSub     = {};
+let activeSort    = {};
+let searchQuery   = '';
 let editingCat    = null;
 let editingIdx    = null;
 let adminToken    = sessionStorage.getItem('unlmtd_admin_token') || null;
@@ -651,7 +681,7 @@ function updateMarkup(pct) {
 
 // ── INIT ──────────────────────────────────────────────────
 async function init() {
-  CATEGORIES.forEach(c => { activeSub[c.id] = null; });
+  CATEGORIES.forEach(c => { activeSub[c.id] = null; activeSort[c.id] = ''; });
 
   // Validate stored password
   // Validate stored token
@@ -697,7 +727,15 @@ function buildPages() {
     <div class="cat-page ${c.id === activeCat ? 'active' : ''}" id="page-${c.id}">
       <div class="cat-header">
         <div class="cat-title">${c.icon} ${c.label}</div>
-        <div class="cat-count" id="count-${c.id}">${(catalog[c.id]||[]).length} items</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="cat-count" id="count-${c.id}">${(catalog[c.id]||[]).length} items</div>
+          <select class="sort-select" onchange="setSort('${c.id}',this.value)">
+            <option value="">Default</option>
+            <option value="price-asc">Price ↑</option>
+            <option value="price-desc">Price ↓</option>
+            <option value="name-asc">A – Z</option>
+          </select>
+        </div>
       </div>
       <div class="sub-filter-wrap" id="pills-${c.id}">${buildPills(c)}</div>
       <div id="grid-${c.id}">${renderSections(c.id)}</div>
@@ -714,16 +752,29 @@ function buildPills(cat) {
   return html;
 }
 
+function sortItems(arr, sortKey) {
+  if (!sortKey) return arr;
+  const sorted = [...arr];
+  if (sortKey === 'price-asc')  sorted.sort((a, b) => (parseFloat(a.item.price)||0) - (parseFloat(b.item.price)||0));
+  if (sortKey === 'price-desc') sorted.sort((a, b) => (parseFloat(b.item.price)||0) - (parseFloat(a.item.price)||0));
+  if (sortKey === 'name-asc')   sorted.sort((a, b) => (a.item.name||'').localeCompare(b.item.name||''));
+  return sorted;
+}
+
 function renderSections(catId) {
   const cat    = CATEGORIES.find(c => c.id === catId);
   const items  = catalog[catId] || [];
   const filter = activeSub[catId];
+  const sort   = activeSort[catId] || '';
   const subsToShow = filter ? [filter] : cat.subs;
   let html = '';
+  let totalVisible = 0;
 
   subsToShow.forEach(sub => {
-    const subItems = items.map((item, i) => ({ item, i })).filter(({ item }) => item.sub === sub);
+    let subItems = items.map((item, i) => ({ item, i })).filter(({ item }) => item.sub === sub);
+    subItems = sortItems(subItems, sort);
     if (subItems.length === 0 && !filter) return;
+    totalVisible += subItems.length;
 
     html += `<div class="sub-section-header">${sub} <span>${subItems.length} item${subItems.length !== 1 ? 's' : ''}</span></div>`;
     html += `<div class="product-grid" style="margin-bottom:8px;">`;
@@ -733,6 +784,13 @@ function renderSections(catId) {
       <div class="add-label">Add to ${sub}</div>
     </div></div>`;
   });
+
+  if (totalVisible === 0 && !filter) {
+    html += `<div style="text-align:center;padding:60px 20px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">No items in this category yet.</div>
+      <div class="admin-section" style="margin-top:10px;font-size:12px;color:var(--text-dim);">Click ＋ Add Item below to get started.</div>
+    </div>`;
+  }
 
   if (!filter) {
     html += `<div class="admin-section">
@@ -782,16 +840,20 @@ function renderCard(item, catId, idx) {
         ${item.bulkPrice ? `<div class="bulk-price-tag">Bulk<span>$${item.bulkPrice}</span></div>` : ''}
        </div>`;
 
-  const waNumber  = '12427270271';
-  const waMsg     = encodeURIComponent(`Hi! I'm interested in ordering:\n\n*${item.name}*\n${item.desc}${item.price ? '\nPrice: $' + item.price + ' BSD' : ''}\n${item.sizes ? 'Sizes: ' + item.sizes : ''}\n\nCould you send me more details?`);
-  const waUrl     = `https://wa.me/${waNumber}?text=${waMsg}`;
+  const waMsg       = encodeURIComponent(`Hi! I'm interested in ordering:\n\n*${item.name}*\n${item.desc}${item.price ? '\nPrice: $' + item.price + ' BSD' : ''}\n${item.sizes ? 'Sizes: ' + item.sizes : ''}\n\nCould you send me more details?`);
+  const waUrl       = `https://wa.me/${WA_NUMBER}?text=${waMsg}`;
   const supplierBtn = item.supplierLink
     ? `<button class="card-action-btn btn-supplier" onclick="event.stopPropagation();window.open('${item.supplierLink}','_blank')" title="Supplier link">🔗</button>`
     : '';
+  const soldOutOverlay = item.soldOut
+    ? `<div class="card-sold-out"><div class="sold-out-banner">SOLD OUT</div></div>`
+    : '';
+  const actionsClass = item.soldOut ? 'card-actions is-sold-out' : 'card-actions';
 
   return `
     <div class="product-card" onclick="openModal('${catId}', ${idx}, null)">
       ${imgContent}
+      ${soldOutOverlay}
       <div class="card-overlay"><button class="order-btn">✏️ Edit</button></div>
       <div class="card-body">
         ${item.badge ? `<span class="card-badge">${item.badge}</span>` : ''}
@@ -802,7 +864,7 @@ function renderCard(item, catId, idx) {
           ${item.sizes ? `<div class="card-sizes">${item.sizes}</div>` : ''}
         </div>
       </div>
-      <div class="card-actions" onclick="event.stopPropagation()">
+      <div class="${actionsClass}" onclick="event.stopPropagation()">
         <a class="card-action-btn btn-wa" href="${waUrl}" target="_blank">📲 WhatsApp</a>
         <button class="card-action-btn btn-copy" onclick="copyItem(this, '${catId}', ${idx})">📋 Copy</button>
         ${supplierBtn}
@@ -880,7 +942,8 @@ function openModal(catId, idx, defaultSub) {
     document.getElementById('edit-desc').value          = item.desc         || '';
     document.getElementById('edit-price').value         = item.price        || '';
     document.getElementById('edit-bulk-price').value    = item.bulkPrice    || '';
-    document.getElementById('edit-por').checked         = item.por          || false;
+    document.getElementById('edit-por').checked         = item.por      || false;
+    document.getElementById('edit-sold-out').checked   = item.soldOut  || false;
     document.getElementById('edit-badge').value         = item.badge        || '';
     document.getElementById('edit-sizes').value         = item.sizes        || '';
     document.getElementById('edit-imgs-list').innerHTML = '';
@@ -895,6 +958,7 @@ function openModal(catId, idx, defaultSub) {
     document.getElementById('edit-price').value         = '';
     document.getElementById('edit-bulk-price').value    = '';
     document.getElementById('edit-por').checked         = false;
+    document.getElementById('edit-sold-out').checked   = false;
     document.getElementById('edit-badge').value         = '';
     document.getElementById('edit-sizes').value         = '';
     document.getElementById('edit-imgs-list').innerHTML = '';
@@ -920,6 +984,7 @@ function saveItem() {
     price:        document.getElementById('edit-price').value.trim()         || '',
     bulkPrice:    document.getElementById('edit-bulk-price').value.trim()    || '',
     por:          document.getElementById('edit-por').checked,
+    soldOut:      document.getElementById('edit-sold-out').checked,
     badge:        document.getElementById('edit-badge').value.trim()         || '',
     sizes:        document.getElementById('edit-sizes').value.trim()         || '',
     imgs:         getEditImgs(),
@@ -936,6 +1001,7 @@ function saveItem() {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
           body: JSON.stringify({ category: editingCat, sub: item.sub, data: item })
         });
+        if (res.status === 401) { showSave('error', '✕ Session expired — log in again'); clearAdminMode(); return; }
         if (!res.ok) { showSave('error', '✕ Save failed'); return; }
         const j = await res.json();
         item.id = j.id;
@@ -947,6 +1013,7 @@ function saveItem() {
           method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
           body: JSON.stringify({ category: editingCat, sub: item.sub, data: item })
         });
+        if (res.status === 401) { showSave('error', '✕ Session expired — log in again'); clearAdminMode(); return; }
         if (!res.ok) { showSave('error', '✕ Save failed'); return; }
         item.id = id;
         catalog[editingCat][editingIdx] = item;
@@ -962,11 +1029,13 @@ function saveItem() {
 
 function deleteItem() {
   if (editingIdx === null) return;
+  if (!confirm('Delete this item? This cannot be undone.')) return;
   (async () => {
     try {
       const existing = catalog[editingCat][editingIdx];
       if (existing && existing.id) {
         const res = await fetch(`/api/items/${existing.id}`, { method: 'DELETE', headers: { 'x-admin-token': adminToken } });
+        if (res.status === 401) { showSave('error', '✕ Session expired — log in again'); clearAdminMode(); return; }
         if (!res.ok) { showSave('error', '✕ Delete failed'); return; }
       }
       catalog[editingCat].splice(editingIdx, 1);
@@ -1075,6 +1144,7 @@ async function saveImportedItem() {
       headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
       body: JSON.stringify({ category: catId, sub, data: item }),
     });
+    if (res.status === 401) { showSave('error', '✕ Session expired — log in again'); clearAdminMode(); return; }
     if (!res.ok) { showSave('error', '✕ Save failed'); return; }
     const j = await res.json();
     item.id = j.id;
@@ -1159,9 +1229,19 @@ function addEditImgField(url) {
   const list = document.getElementById('edit-imgs-list');
   const div  = document.createElement('div');
   div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;';
-  div.innerHTML = `<input class="field-input" type="text" placeholder="https://..." value="${url}" oninput="" style="flex:1;">
-    <button type="button" onclick="this.parentElement.remove()" style="background:transparent;border:1px solid rgba(220,60,60,0.3);color:rgba(220,100,100,0.8);padding:0 12px;cursor:pointer;font-size:16px;flex-shrink:0;">✕</button>`;
+  div.innerHTML = `<input class="field-input" type="text" placeholder="https://..." value="${url}" oninput="updateEditImgPreview()" style="flex:1;">
+    <button type="button" onclick="this.parentElement.remove();updateEditImgPreview()" style="background:transparent;border:1px solid rgba(220,60,60,0.3);color:rgba(220,100,100,0.8);padding:0 12px;cursor:pointer;font-size:16px;flex-shrink:0;">✕</button>`;
   list.appendChild(div);
+  updateEditImgPreview();
+}
+
+function updateEditImgPreview() {
+  const urls  = getEditImgs();
+  const strip = document.getElementById('edit-img-preview-strip');
+  if (!strip) return;
+  strip.innerHTML = urls.map(u =>
+    `<img src="${u}" style="width:54px;height:72px;object-fit:cover;background:#222;border:1px solid var(--border);" onerror="this.style.opacity='0.2'">`
+  ).join('');
 }
 
 function getEditImgs() {
@@ -1181,6 +1261,50 @@ function addImportImgField(url) {
 function getImportImgs() {
   return Array.from(document.querySelectorAll('#import-imgs-list input'))
     .map(i => i.value.trim()).filter(Boolean);
+}
+
+// ── SEARCH ───────────────────────────────────────────────
+function onSearch(val) {
+  searchQuery = val.trim().toLowerCase();
+  const resultsEl = document.getElementById('search-results');
+  const pagesEl   = document.getElementById('pages-container');
+  if (searchQuery) {
+    pagesEl.style.display   = 'none';
+    resultsEl.style.display = 'block';
+    renderSearchResults();
+  } else {
+    pagesEl.style.display   = '';
+    resultsEl.style.display = 'none';
+  }
+}
+
+function renderSearchResults() {
+  const q = searchQuery;
+  let html = '';
+  let total = 0;
+  CATEGORIES.forEach(cat => {
+    const matches = (catalog[cat.id] || [])
+      .map((item, i) => ({ item, i }))
+      .filter(({ item }) => (item.name + ' ' + (item.desc||'') + ' ' + (item.badge||'')).toLowerCase().includes(q));
+    if (!matches.length) return;
+    total += matches.length;
+    html += `<div class="sub-section-header">${cat.icon} ${cat.label} <span>${matches.length}</span></div>`;
+    html += `<div class="product-grid" style="margin-bottom:8px;">`;
+    html += matches.map(({ item, i }) => renderCard(item, cat.id, i)).join('');
+    html += `</div>`;
+  });
+  if (!total) {
+    html = `<div style="text-align:center;padding:60px 20px;color:var(--text-dim);">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;">No results for "${q}"</div>
+    </div>`;
+  }
+  document.getElementById('search-results').innerHTML = html;
+}
+
+// ── SORT ─────────────────────────────────────────────────
+function setSort(catId, val) {
+  activeSort[catId] = val;
+  document.getElementById(`grid-${catId}`).innerHTML = renderSections(catId);
 }
 
 // ── IMPORT VIA URL PARAMS ─────────────────────────────────
