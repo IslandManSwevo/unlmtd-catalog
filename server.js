@@ -10,10 +10,36 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname)));
 
 // ── DATABASE ──────────────────────────────────────────────
+const dbUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || null;
+
+function maskDbUrl(url){
+  try{
+    if(!url) return 'NONE';
+    const u = new URL(url);
+    if(u.password) u.password = '****';
+    return u.toString();
+  }catch(e){
+    return 'UNPARSEABLE';
+  }
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: dbUrl || undefined,
   ssl: { rejectUnauthorized: false },
 });
+
+async function waitForDb(retries = 8, delayMs = 1000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await pool.query('SELECT 1');
+      return;
+    } catch (err) {
+      console.error(`DB connect attempt ${i + 1}/${retries} failed:`, err && err.code ? err.code : err.message || err);
+      await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+  throw new Error('Unable to connect to DB after multiple attempts');
+}
 
 async function initDB() {
   // items table: source of truth for catalog entries
