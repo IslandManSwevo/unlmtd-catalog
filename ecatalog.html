@@ -209,6 +209,18 @@
   .add-icon { font-size: 32px; opacity: 0.3; }
   .add-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); }
 
+  /* ── PHOTO CAROUSEL ── */
+  .card-carousel { position: relative; overflow: hidden; aspect-ratio: 3/4; background: #222; }
+  .carousel-track { display: flex; height: 100%; transition: transform 0.3s ease; }
+  .carousel-slide { min-width: 100%; width: 100%; height: 100%; object-fit: cover; flex-shrink: 0; display: block; }
+  .carousel-prev, .carousel-next { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.55); border: none; color: #fff; font-size: 20px; line-height: 1; padding: 8px 10px; cursor: pointer; z-index: 2; opacity: 0; transition: opacity 0.2s; user-select: none; }
+  .carousel-prev { left: 0; }
+  .carousel-next { right: 0; }
+  .card-carousel:hover .carousel-prev, .card-carousel:hover .carousel-next { opacity: 1; }
+  .carousel-dots { position: absolute; bottom: 8px; left: 0; right: 0; display: flex; justify-content: center; gap: 5px; z-index: 2; }
+  .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.35); transition: background 0.2s; }
+  .carousel-dot.active { background: var(--gold); }
+
   /* ── SUBSECTION FILTERS ── */
   .sub-filter-wrap { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
   .sub-pill { padding: 7px 16px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); color: var(--text-dim); background: transparent; transition: all 0.18s; user-select: none; }
@@ -380,7 +392,11 @@
       <div id="import-img-preview" style="margin-bottom:20px;"></div>
       <div class="field-group"><label class="field-label">Item Name</label><input class="field-input" id="import-name" type="text"></div>
       <div class="field-group"><label class="field-label">Description</label><input class="field-input" id="import-desc" type="text"></div>
-      <div class="field-group"><label class="field-label">Image URL</label><input class="field-input" id="import-img" type="text" oninput="previewImportImg()"></div>
+      <div class="field-group">
+        <label class="field-label">Photos (swipe order)</label>
+        <div id="import-imgs-list"></div>
+        <button type="button" onclick="addImportImgField('')" class="btn-secondary" style="margin-top:8px;width:100%;padding:8px;font-size:10px;letter-spacing:1.5px;">＋ Add Photo URL</button>
+      </div>
       <div class="field-row">
         <div class="field-group"><label class="field-label">Retail Price (BSD)</label><input class="field-input" id="import-price" type="text" placeholder="0.00"></div>
         <div class="field-group"><label class="field-label">Bulk Price (BSD)</label><input class="field-input" id="import-bulk" type="text" placeholder="0.00"></div>
@@ -465,8 +481,9 @@
         <input class="field-input" id="edit-sizes" placeholder="e.g. S · M · L · XL · XXL" type="text">
       </div>
       <div class="field-group">
-        <label class="field-label">Image URL (paste product image link)</label>
-        <input class="field-input" id="edit-img" placeholder="https://..." type="text">
+        <label class="field-label">Photos (swipe order)</label>
+        <div id="edit-imgs-list"></div>
+        <button type="button" onclick="addEditImgField('')" class="btn-secondary" style="margin-top:8px;width:100%;padding:8px;font-size:10px;letter-spacing:1.5px;">＋ Add Photo URL</button>
       </div>
       <div class="field-group">
         <label class="field-label">🔗 Supplier Link (private — your eyes only)</label>
@@ -720,8 +737,26 @@ function renderSections(catId) {
 }
 
 function renderCard(item, catId, idx) {
-  const imgContent     = item.img ? `<img class="card-img" src="${item.img}" alt="${item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : '';
-  const placeholderStyle = item.img ? 'display:none' : '';
+  const imgs = item.imgs?.length ? item.imgs : (item.img ? [item.img] : []);
+  let imgContent = '';
+  if (imgs.length === 0) {
+    imgContent = `<div class="card-img-placeholder">
+      <div class="placeholder-icon">${item.icon || '🏷️'}</div>
+      <div class="placeholder-text">Tap to add image</div>
+    </div>`;
+  } else if (imgs.length === 1) {
+    imgContent = `<img class="card-img" src="${imgs[0]}" alt="${item.name}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'card-img-placeholder\\'><div class=\\'placeholder-icon\\'>${item.icon||'🏷️'}</div><div class=\\'placeholder-text\\'>No image</div></div>')">`;
+  } else {
+    const slides = imgs.map(src => `<img class="carousel-slide" src="${src}" alt="${item.name}" onerror="this.style.opacity='0.15'">`).join('');
+    const dots   = imgs.map((_, i) => `<span class="carousel-dot${i===0?' active':''}"></span>`).join('');
+    imgContent = `<div class="card-carousel" data-idx="0" data-count="${imgs.length}"
+      ontouchstart="carouselTouch(this,event,'start')" ontouchend="carouselTouch(this,event,'end')">
+      <div class="carousel-track">${slides}</div>
+      <button class="carousel-prev" onclick="event.stopPropagation();carouselMove(this.parentElement,-1)">‹</button>
+      <button class="carousel-next" onclick="event.stopPropagation();carouselMove(this.parentElement,1)">›</button>
+      <div class="carousel-dots">${dots}</div>
+    </div>`;
+  }
   const priceHtml      = item.por
     ? `<div class="card-price-por">📲 Contact for Price</div>`
     : `<div>
@@ -739,10 +774,6 @@ function renderCard(item, catId, idx) {
   return `
     <div class="product-card" onclick="openModal('${catId}', ${idx}, null)">
       ${imgContent}
-      <div class="card-img-placeholder" style="${placeholderStyle}">
-        <div class="placeholder-icon">${item.icon || '🏷️'}</div>
-        <div class="placeholder-text">Tap to add image</div>
-      </div>
       <div class="card-overlay"><button class="order-btn">✏️ Edit</button></div>
       <div class="card-body">
         ${item.badge ? `<span class="card-badge">${item.badge}</span>` : ''}
@@ -834,7 +865,9 @@ function openModal(catId, idx, defaultSub) {
     document.getElementById('edit-por').checked         = item.por          || false;
     document.getElementById('edit-badge').value         = item.badge        || '';
     document.getElementById('edit-sizes').value         = item.sizes        || '';
-    document.getElementById('edit-img').value           = item.img          || '';
+    document.getElementById('edit-imgs-list').innerHTML = '';
+    const existImgs = item.imgs?.length ? item.imgs : (item.img ? [item.img] : []);
+    if (existImgs.length) existImgs.forEach(u => addEditImgField(u)); else addEditImgField('');
     document.getElementById('edit-supplier-link').value = item.supplierLink || '';
     document.getElementById('edit-icon').value          = item.icon         || '';
     subSelect.value = item.sub || cat.subs[0];
@@ -846,7 +879,8 @@ function openModal(catId, idx, defaultSub) {
     document.getElementById('edit-por').checked         = false;
     document.getElementById('edit-badge').value         = '';
     document.getElementById('edit-sizes').value         = '';
-    document.getElementById('edit-img').value           = '';
+    document.getElementById('edit-imgs-list').innerHTML = '';
+    addEditImgField('');
     document.getElementById('edit-supplier-link').value = '';
     document.getElementById('edit-icon').value          = cat ? cat.icon : '';
     subSelect.value = defaultSub || activeSub[catId] || cat.subs[0];
@@ -870,7 +904,7 @@ function saveItem() {
     por:          document.getElementById('edit-por').checked,
     badge:        document.getElementById('edit-badge').value.trim()         || '',
     sizes:        document.getElementById('edit-sizes').value.trim()         || '',
-    img:          document.getElementById('edit-img').value.trim()           || '',
+    imgs:         getEditImgs(),
     supplierLink: document.getElementById('edit-supplier-link').value.trim() || '',
     icon:         document.getElementById('edit-icon').value.trim()          || '🏷️',
     sub:          document.getElementById('edit-sub').value,
@@ -937,15 +971,22 @@ document.getElementById('import-modal').addEventListener('click', function(e) { 
 function buildBookmarklet() {
   const base = 'https://unlmtdwholesale.up.railway.app';
   const code = `javascript:(function(){
-    var n='',im='',d='',src=location.href;
+    var n='',imgs=[],d='',src=location.href;
     var h=document.querySelector('h1,h2,.album-name,.product-name,.goods-name,.title');
     n=h?h.innerText.trim():document.title.split(/[|\\-\\u2013\\u2014]/)[0].trim();
+    var seen={};
+    document.querySelectorAll('img').forEach(function(el){
+      var u=el.src||el.getAttribute('data-src')||el.getAttribute('data-lazy')||'';
+      var s=(el.naturalWidth||el.width||0)*(el.naturalHeight||el.height||0);
+      if(u&&u.startsWith('http')&&s>10000&&!u.match(/logo|icon|avatar|sprite/i)&&!seen[u]){seen[u]=1;imgs.push({u:u,s:s});}
+    });
     var og=document.querySelector('meta[property="og:image"]');
-    if(og&&og.content)im=og.content;
-    if(!im){var best=null,bestS=0;document.querySelectorAll('img').forEach(function(el){var s=(el.naturalWidth||el.width||0)*(el.naturalHeight||el.height||0);var u=el.src||el.getAttribute('data-src')||el.getAttribute('data-lazy')||'';if(u&&u.startsWith('http')&&s>bestS&&!u.match(/logo|icon|avatar|sprite/i)){bestS=s;best=u;}});if(best)im=best;}
+    if(og&&og.content&&!seen[og.content]){imgs.unshift({u:og.content,s:999999});}
+    imgs.sort(function(a,b){return b.s-a.s;});
+    imgs=imgs.slice(0,8).map(function(x){return x.u;});
     var dm=document.querySelector('meta[name="description"],meta[property="og:description"]');
     d=dm?dm.content:'';
-    window.open('${base}/?_import=1&n='+encodeURIComponent(n)+'&im='+encodeURIComponent(im)+'&d='+encodeURIComponent(d)+'&src='+encodeURIComponent(src),'_blank');
+    window.open('${base}/?_import=1&n='+encodeURIComponent(n)+'&imgs='+encodeURIComponent(JSON.stringify(imgs))+'&d='+encodeURIComponent(d)+'&src='+encodeURIComponent(src),'_blank');
   })();`.replace(/\s+/g,' ').trim();
   return code;
 }
@@ -967,10 +1008,12 @@ function openImportModal(data) {
   updateImportSubs();
   document.getElementById('import-name').value  = data.n   || '';
   document.getElementById('import-desc').value  = data.d   || '';
-  document.getElementById('import-img').value   = data.im  || '';
   document.getElementById('import-src').value   = data.src || '';
   document.getElementById('import-price').value = '';
   document.getElementById('import-bulk').value  = '';
+  document.getElementById('import-imgs-list').innerHTML = '';
+  const importImgs = data.imgs?.length ? data.imgs : (data.im ? [data.im] : []);
+  if (importImgs.length) importImgs.forEach(u => addImportImgField(u)); else addImportImgField('');
   previewImportImg();
   document.getElementById('import-modal').classList.add('open');
   window.history.replaceState({}, '', '/');
@@ -982,10 +1025,10 @@ function updateImportSubs() {
 }
 
 function previewImportImg() {
-  const url = document.getElementById('import-img').value.trim();
-  const box = document.getElementById('import-img-preview');
-  box.innerHTML = url
-    ? `<img src="${url}" style="width:100%;max-height:200px;object-fit:contain;background:#111;display:block;margin-bottom:8px;" onerror="this.style.display='none'">`
+  const first = document.querySelector('#import-imgs-list input')?.value.trim() || '';
+  const box   = document.getElementById('import-img-preview');
+  box.innerHTML = first
+    ? `<img src="${first}" style="width:100%;max-height:200px;object-fit:contain;background:#111;display:block;margin-bottom:8px;" onerror="this.style.display='none'">`
     : '';
 }
 
@@ -1003,7 +1046,7 @@ async function saveImportedItem() {
     desc:         document.getElementById('import-desc').value.trim()  || '',
     price:        document.getElementById('import-price').value.trim() || '',
     bulkPrice:    document.getElementById('import-bulk').value.trim()  || '',
-    img:          document.getElementById('import-img').value.trim()   || '',
+    imgs:         getImportImgs(),
     supplierLink: document.getElementById('import-src').value.trim()   || '',
     icon:         cat ? cat.icon : '🏷️',
     badge: '', sizes: '', por: false, sub,
@@ -1027,11 +1070,62 @@ async function saveImportedItem() {
   }
 }
 
+// ── CAROUSEL ─────────────────────────────────────────────
+function carouselMove(el, dir) {
+  const count = parseInt(el.dataset.count);
+  const idx   = (parseInt(el.dataset.idx) + dir + count) % count;
+  el.dataset.idx = idx;
+  el.querySelector('.carousel-track').style.transform = `translateX(-${idx * 100}%)`;
+  el.querySelectorAll('.carousel-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+}
+
+let _carouselTouchX = 0;
+function carouselTouch(el, e, phase) {
+  if (phase === 'start') {
+    _carouselTouchX = e.touches[0].clientX;
+  } else {
+    const diff = _carouselTouchX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) carouselMove(el, diff > 0 ? 1 : -1);
+  }
+}
+
+// ── IMAGE FIELD HELPERS ───────────────────────────────────
+function addEditImgField(url) {
+  const list = document.getElementById('edit-imgs-list');
+  const div  = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;';
+  div.innerHTML = `<input class="field-input" type="text" placeholder="https://..." value="${url}" oninput="" style="flex:1;">
+    <button type="button" onclick="this.parentElement.remove()" style="background:transparent;border:1px solid rgba(220,60,60,0.3);color:rgba(220,100,100,0.8);padding:0 12px;cursor:pointer;font-size:16px;flex-shrink:0;">✕</button>`;
+  list.appendChild(div);
+}
+
+function getEditImgs() {
+  return Array.from(document.querySelectorAll('#edit-imgs-list input'))
+    .map(i => i.value.trim()).filter(Boolean);
+}
+
+function addImportImgField(url) {
+  const list = document.getElementById('import-imgs-list');
+  const div  = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;';
+  div.innerHTML = `<input class="field-input" type="text" placeholder="https://..." value="${url}" oninput="previewImportImg()" style="flex:1;">
+    <button type="button" onclick="this.parentElement.remove();previewImportImg()" style="background:transparent;border:1px solid rgba(220,60,60,0.3);color:rgba(220,100,100,0.8);padding:0 12px;cursor:pointer;font-size:16px;flex-shrink:0;">✕</button>`;
+  list.appendChild(div);
+}
+
+function getImportImgs() {
+  return Array.from(document.querySelectorAll('#import-imgs-list input'))
+    .map(i => i.value.trim()).filter(Boolean);
+}
+
 // ── IMPORT VIA URL PARAMS ─────────────────────────────────
 function checkImportParams() {
   const p = new URLSearchParams(window.location.search);
   if (p.get('_import') !== '1') return;
-  const data = { n: p.get('n')||'', im: p.get('im')||'', d: p.get('d')||'', src: p.get('src')||'' };
+  let parsedImgs = [];
+  try { parsedImgs = JSON.parse(p.get('imgs') || '[]'); } catch(e) {}
+  if (!parsedImgs.length && p.get('im')) parsedImgs = [p.get('im')];
+  const data = { n: p.get('n')||'', imgs: parsedImgs, d: p.get('d')||'', src: p.get('src')||'' };
   if (document.body.classList.contains('admin-mode')) {
     openImportModal(data);
   } else {
