@@ -203,6 +203,8 @@
   /* ── ADD CARD — admin only ── */
   .add-card { background: transparent; border: 2px dashed rgba(201,168,76,0.2); display: none; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: border-color 0.2s; min-height: 300px; gap: 12px; }
   body.admin-mode .add-card { display: flex; }
+  .admin-section { display: none; }
+  body.admin-mode .admin-section { display: block; }
   .add-card:hover { border-color: var(--gold); }
   .add-icon { font-size: 32px; opacity: 0.3; }
   .add-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); }
@@ -704,11 +706,13 @@ function renderSections(catId) {
   });
 
   if (!filter) {
-    html += `<div class="sub-section-header" style="margin-top:24px;">Add New Item</div>
-    <div class="product-grid" style="margin-bottom:8px;">
-      <div class="add-card product-card" onclick="openModal('${catId}', null, null)">
-        <div class="add-icon">＋</div>
-        <div class="add-label">Add Item</div>
+    html += `<div class="admin-section">
+      <div class="sub-section-header" style="margin-top:24px;">Add New Item</div>
+      <div class="product-grid" style="margin-bottom:8px;">
+        <div class="add-card product-card" onclick="openModal('${catId}', null, null)">
+          <div class="add-icon">＋</div>
+          <div class="add-label">Add Item</div>
+        </div>
       </div>
     </div>`;
   }
