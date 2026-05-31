@@ -148,7 +148,9 @@
     position: absolute; inset: 0;
     background: rgba(201,168,76,0.12); opacity: 0;
     transition: opacity 0.2s; display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
   }
+  .card-overlay .order-btn { pointer-events: auto; }
   body:not(.admin-mode) .card-overlay { display: none !important; }
 
   .order-btn {
