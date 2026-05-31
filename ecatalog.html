@@ -279,6 +279,7 @@
   <div class="topbar-meta">Wholesale Catalog · 2025</div>
   <div class="topbar-right">
     <span class="save-indicator" id="save-indicator"></span>
+    <button class="admin-btn" id="bookmarklet-btn" onclick="openBookmarkletModal()" style="display:none;">📥 Importer</button>
     <button class="admin-btn" id="admin-toggle-btn" onclick="toggleAdminPanel()">⚙ Admin</button>
     <a class="whatsapp-btn" href="https://wa.me/12427270271" target="_blank">📲 Order Now</a>
   </div>
@@ -340,6 +341,56 @@
   <div class="footer-contact">
     <div class="footer-label">WhatsApp Orders</div>
     <div class="footer-number">+1 (242) 727-0271</div>
+  </div>
+</div>
+
+<!-- BOOKMARKLET INSTALL MODAL -->
+<div class="modal-backdrop" id="bookmarklet-modal">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <div class="modal-title">📥 SUPPLIER IMPORTER</div>
+      <button class="modal-close" onclick="closeBookmarkletModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-mid);line-height:1.7;margin-bottom:20px;">Drag the button below into your browser bookmarks bar. Then when you are on any supplier product page — Yupoo, qiqiyg, anywhere — click it to pull the product straight into your catalog.</p>
+      <div style="background:var(--mid);border:1px solid var(--border);padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="font-family:Barlow Condensed,sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">Step 1 — Drag this to your bookmarks bar:</div>
+        <a id="bookmarklet-link" href="" style="background:var(--gold);color:#000;padding:10px 20px;font-family:Barlow Condensed,sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;text-decoration:none;white-space:nowrap;cursor:grab;display:inline-block;">📥 Add to UNLMTD</a>
+      </div>
+      <div style="background:var(--mid);border:1px solid var(--border);padding:20px 24px;margin-bottom:20px;">
+        <div style="font-family:Barlow Condensed,sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:12px;">Step 2 — Go to a product page then click the bookmark</div>
+        <div style="font-size:13px;color:var(--text-mid);line-height:1.7;">It reads the product name, main image and description — then opens your catalog with those fields pre-filled. Just set the price, pick the category, and save.</div>
+      </div>
+      <div style="background:rgba(201,168,76,0.07);border:1px solid var(--border);padding:14px 18px;font-size:12px;color:var(--text-dim);line-height:1.6;">💡 Works best on Yupoo album pages. If an image does not auto-fill you can paste the URL manually in the form.</div>
+    </div>
+    <div class="modal-footer"><button class="btn-secondary" onclick="closeBookmarkletModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- IMPORT PREVIEW MODAL -->
+<div class="modal-backdrop" id="import-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title">📥 IMPORT PRODUCT</div>
+      <button class="modal-close" onclick="closeImportModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="import-img-preview" style="margin-bottom:20px;"></div>
+      <div class="field-group"><label class="field-label">Item Name</label><input class="field-input" id="import-name" type="text"></div>
+      <div class="field-group"><label class="field-label">Description</label><input class="field-input" id="import-desc" type="text"></div>
+      <div class="field-group"><label class="field-label">Image URL</label><input class="field-input" id="import-img" type="text" oninput="previewImportImg()"></div>
+      <div class="field-row">
+        <div class="field-group"><label class="field-label">Retail Price (BSD)</label><input class="field-input" id="import-price" type="text" placeholder="0.00"></div>
+        <div class="field-group"><label class="field-label">Bulk Price (BSD)</label><input class="field-input" id="import-bulk" type="text" placeholder="0.00"></div>
+      </div>
+      <div class="field-group"><label class="field-label">Category</label><select class="field-input" id="import-cat" style="cursor:pointer;" onchange="updateImportSubs()"></select></div>
+      <div class="field-group"><label class="field-label">Subcategory</label><select class="field-input" id="import-sub" style="cursor:pointer;"></select></div>
+      <div class="field-group"><label class="field-label">Supplier Link (private)</label><input class="field-input" id="import-src" type="text"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeImportModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveImportedItem()">Add to Catalog</button>
+    </div>
   </div>
 </div>
 
@@ -500,6 +551,7 @@ function setAdminMode(token) {
   sessionStorage.setItem('unlmtd_admin_token', token);
   document.body.classList.add('admin-mode');
   document.getElementById('admin-toggle-btn').textContent = '🔓 Admin';
+  document.getElementById('bookmarklet-btn').style.display = 'inline-block';
 }
 
 function clearAdminMode() {
@@ -507,6 +559,7 @@ function clearAdminMode() {
   sessionStorage.removeItem('unlmtd_admin_token');
   document.body.classList.remove('admin-mode');
   document.getElementById('admin-toggle-btn').textContent = '⚙ Admin';
+  document.getElementById('bookmarklet-btn').style.display = 'none';
 }
 
 function toggleAdminPanel() {
@@ -537,6 +590,8 @@ async function submitAdminLogin() {
       setAdminMode(j.token);
       closeAdminModal();
       buildPages();
+      const pending = sessionStorage.getItem('pending_import');
+      if (pending) { try { openImportModal(JSON.parse(pending)); } catch(e) {} }
     } else {
       err.textContent = 'Wrong password. Try again.';
       document.getElementById('admin-pw-input').value = '';
@@ -575,6 +630,7 @@ async function init() {
       if (res.ok) {
         document.body.classList.add('admin-mode');
         document.getElementById('admin-toggle-btn').textContent = '🔓 Admin';
+        document.getElementById('bookmarklet-btn').style.display = 'inline-block';
       } else {
         clearAdminMode();
       }
@@ -591,6 +647,7 @@ async function init() {
   buildPages();
   updateTotalCount();
   updateMarkup(40);
+  checkImportParams();
 }
 
 // ── RENDER ────────────────────────────────────────────────
@@ -869,6 +926,117 @@ function deleteItem() {
 // Close modals on backdrop click
 document.getElementById('modal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
 document.getElementById('admin-modal').addEventListener('click', function(e) { if (e.target === this) closeAdminModal(); });
+document.getElementById('bookmarklet-modal').addEventListener('click', function(e) { if (e.target === this) closeBookmarkletModal(); });
+document.getElementById('import-modal').addEventListener('click', function(e) { if (e.target === this) closeImportModal(); });
+
+// ── BOOKMARKLET ───────────────────────────────────────────
+function buildBookmarklet() {
+  const base = 'https://unlmtdwholesale.up.railway.app';
+  const code = `javascript:(function(){
+    var n='',im='',d='',src=location.href;
+    var h=document.querySelector('h1,h2,.album-name,.product-name,.goods-name,.title');
+    n=h?h.innerText.trim():document.title.split(/[|\\-\\u2013\\u2014]/)[0].trim();
+    var og=document.querySelector('meta[property="og:image"]');
+    if(og&&og.content)im=og.content;
+    if(!im){var best=null,bestS=0;document.querySelectorAll('img').forEach(function(el){var s=(el.naturalWidth||el.width||0)*(el.naturalHeight||el.height||0);var u=el.src||el.getAttribute('data-src')||el.getAttribute('data-lazy')||'';if(u&&u.startsWith('http')&&s>bestS&&!u.match(/logo|icon|avatar|sprite/i)){bestS=s;best=u;}});if(best)im=best;}
+    var dm=document.querySelector('meta[name="description"],meta[property="og:description"]');
+    d=dm?dm.content:'';
+    window.open('${base}/?_import=1&n='+encodeURIComponent(n)+'&im='+encodeURIComponent(im)+'&d='+encodeURIComponent(d)+'&src='+encodeURIComponent(src),'_blank');
+  })();`.replace(/\s+/g,' ').trim();
+  return code;
+}
+
+function openBookmarkletModal() {
+  document.getElementById('bookmarklet-link').href = buildBookmarklet();
+  document.getElementById('bookmarklet-modal').classList.add('open');
+}
+
+function closeBookmarkletModal() {
+  document.getElementById('bookmarklet-modal').classList.remove('open');
+}
+
+// ── IMPORT MODAL ──────────────────────────────────────────
+function openImportModal(data) {
+  if (!document.body.classList.contains('admin-mode')) return;
+  const catSel = document.getElementById('import-cat');
+  catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
+  updateImportSubs();
+  document.getElementById('import-name').value  = data.n   || '';
+  document.getElementById('import-desc').value  = data.d   || '';
+  document.getElementById('import-img').value   = data.im  || '';
+  document.getElementById('import-src').value   = data.src || '';
+  document.getElementById('import-price').value = '';
+  document.getElementById('import-bulk').value  = '';
+  previewImportImg();
+  document.getElementById('import-modal').classList.add('open');
+  window.history.replaceState({}, '', '/');
+}
+
+function updateImportSubs() {
+  const cat = CATEGORIES.find(c => c.id === document.getElementById('import-cat').value);
+  document.getElementById('import-sub').innerHTML = (cat ? cat.subs : []).map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+function previewImportImg() {
+  const url = document.getElementById('import-img').value.trim();
+  const box = document.getElementById('import-img-preview');
+  box.innerHTML = url
+    ? `<img src="${url}" style="width:100%;max-height:200px;object-fit:contain;background:#111;display:block;margin-bottom:8px;" onerror="this.style.display='none'">`
+    : '';
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').classList.remove('open');
+  sessionStorage.removeItem('pending_import');
+}
+
+async function saveImportedItem() {
+  const catId = document.getElementById('import-cat').value;
+  const sub   = document.getElementById('import-sub').value;
+  const cat   = CATEGORIES.find(c => c.id === catId);
+  const item  = {
+    name:         document.getElementById('import-name').value.trim()  || 'Untitled Item',
+    desc:         document.getElementById('import-desc').value.trim()  || '',
+    price:        document.getElementById('import-price').value.trim() || '',
+    bulkPrice:    document.getElementById('import-bulk').value.trim()  || '',
+    img:          document.getElementById('import-img').value.trim()   || '',
+    supplierLink: document.getElementById('import-src').value.trim()   || '',
+    icon:         cat ? cat.icon : '🏷️',
+    badge: '', sizes: '', por: false, sub,
+  };
+  try {
+    const res = await fetch('/api/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+      body: JSON.stringify({ category: catId, sub, data: item }),
+    });
+    if (!res.ok) { showSave('error', '✕ Save failed'); return; }
+    const j = await res.json();
+    item.id = j.id;
+    catalog[catId].push(item);
+    refreshPage(catId);
+    closeImportModal();
+    showSave('saved', '✓ Item imported!');
+    switchCat(catId);
+  } catch {
+    showSave('error', '✕ Connection error');
+  }
+}
+
+// ── IMPORT VIA URL PARAMS ─────────────────────────────────
+function checkImportParams() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('_import') !== '1') return;
+  const data = { n: p.get('n')||'', im: p.get('im')||'', d: p.get('d')||'', src: p.get('src')||'' };
+  if (document.body.classList.contains('admin-mode')) {
+    openImportModal(data);
+  } else {
+    sessionStorage.setItem('pending_import', JSON.stringify(data));
+    window.history.replaceState({}, '', '/');
+    document.getElementById('admin-modal').classList.add('open');
+    setTimeout(() => document.getElementById('admin-pw-input').focus(), 100);
+  }
+}
 
 init();
 </script>
