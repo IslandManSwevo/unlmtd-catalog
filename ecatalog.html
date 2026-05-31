@@ -326,7 +326,7 @@
       <div class="markup-pct" id="markup-pct">40%</div>
     </div>
     <div class="markup-example">
-      If supplier costs <strong>$25</strong> → sell at <strong id="markup-sell">$35.00</strong> BSD &nbsp;·&nbsp; Profit: <strong id="markup-profit">$10.00</strong>
+      Cost $<input id="markup-base" type="number" min="1" value="25" oninput="updateMarkup(document.getElementById('markup-slider').value)" style="width:64px;background:var(--mid);border:1px solid rgba(255,255,255,0.12);border-bottom-color:var(--gold);color:var(--off-white);font-family:'Barlow',sans-serif;font-size:13px;padding:3px 6px;outline:none;text-align:center;"> → sell at <strong id="markup-sell">$35.00</strong> BSD &nbsp;·&nbsp; Profit: <strong id="markup-profit">$10.00</strong>
     </div>
   </div>
   <div id="pages-container">
@@ -612,7 +612,7 @@ function closeAdminModal() {
 
 // ── MARKUP CALCULATOR ─────────────────────────────────────
 function updateMarkup(pct) {
-  const base   = 25;
+  const base   = parseFloat(document.getElementById('markup-base').value) || 0;
   const sell   = base * (1 + pct / 100);
   const profit = sell - base;
   document.getElementById('markup-pct').textContent    = pct + '%';
