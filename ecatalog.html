@@ -1070,7 +1070,7 @@ function buildBookmarklet() {
     var og=document.querySelector('meta[property="og:image"]');
     if(og&&og.content&&!seen[og.content]){imgs.unshift({u:og.content,s:999999});}
     imgs.sort(function(a,b){return b.s-a.s;});
-    imgs=imgs.slice(0,8).map(function(x){return x.u;});
+    imgs=imgs.map(function(x){return x.u;});
     var dm=document.querySelector('meta[name="description"],meta[property="og:description"]');
     d=dm?dm.content:'';
     window.open('${base}/?_import=1&n='+encodeURIComponent(n)+'&imgs='+encodeURIComponent(JSON.stringify(imgs))+'&d='+encodeURIComponent(d)+'&src='+encodeURIComponent(src),'_blank');
