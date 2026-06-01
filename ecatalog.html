@@ -555,6 +555,12 @@ const CATEGORIES = [
 
 const WA_NUMBER = '12427270271';
 
+function proxyImgUrl(url) {
+  if (!url) return url;
+  if (url.match(/yupoo\.com/i)) return '/api/img?url=' + encodeURIComponent(url);
+  return url;
+}
+
 // ── STATE ────────────────────────────────────────────────
 let catalog       = {};
 let activeCat     = CATEGORIES[0].id;
@@ -816,12 +822,12 @@ function renderCard(item, catId, idx) {
     </div>`;
   } else if (imgs.length === 1) {
     const imgsAttr = imgs[0].replace(/'/g, '%27');
-    imgContent = `<img class="card-img" src="${imgs[0]}" alt="${item.name}" style="cursor:zoom-in;"
+    imgContent = `<img class="card-img" src="${proxyImgUrl(imgs[0])}" alt="${item.name}" style="cursor:zoom-in;"
       onclick="event.stopPropagation();openLightbox(['${imgsAttr}'],0)"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'card-img-placeholder\\'><div class=\\'placeholder-icon\\'>${item.icon||'🏷️'}</div><div class=\\'placeholder-text\\'>No image</div></div>')">`;
   } else {
     const imgsJson = JSON.stringify(imgs).replace(/'/g, '%27');
-    const slides = imgs.map((src, i) => `<img class="carousel-slide" src="${src}" alt="${item.name}" style="cursor:zoom-in;"
+    const slides = imgs.map((src, i) => `<img class="carousel-slide" src="${proxyImgUrl(src)}" alt="${item.name}" style="cursor:zoom-in;"
       onclick="event.stopPropagation();openLightbox(JSON.parse(this.closest('.card-carousel').dataset.imgs),${i})"
       onerror="this.style.opacity='0.15'">`).join('');
     const dots   = imgs.map((_, i) => `<span class="carousel-dot${i===0?' active':''}"></span>`).join('');
@@ -1178,7 +1184,7 @@ function openLightbox(imgs, idx) {
 }
 
 function _renderLightbox() {
-  document.getElementById('lb-img').src = _lbImgs[_lbIdx];
+  document.getElementById('lb-img').src = proxyImgUrl(_lbImgs[_lbIdx]);
   const multi = _lbImgs.length > 1;
   document.getElementById('lb-prev').style.display = multi ? 'block' : 'none';
   document.getElementById('lb-next').style.display = multi ? 'block' : 'none';

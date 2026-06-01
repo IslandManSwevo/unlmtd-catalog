@@ -2,6 +2,8 @@ const express = require('express');
 const path    = require('path');
 const { Pool } = require('pg');
 const fs      = require('fs');
+const https   = require('https');
+const http    = require('http');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -275,6 +277,35 @@ app.post('/api/logout', async (req, res) => {
     console.error('Logout error', err.message);
     return res.status(500).json({ error: 'Failed' });
   }
+});
+
+// Image proxy — bypasses hotlink protection for known supplier domains
+const IMG_ALLOWED = /^https?:\/\/([a-z0-9-]+\.)?(yupoo\.com|qiqiyg\.com|alicdn\.com|dhgate\.com|aliexpress\.com)/i;
+
+app.get('/api/img', (req, res) => {
+  const url = decodeURIComponent(req.query.url || '');
+  if (!url || !IMG_ALLOWED.test(url)) return res.status(403).end();
+
+  // Derive a Yupoo-native referer from the image URL
+  let referer = 'https://www.yupoo.com/';
+  const m = url.match(/photo\.yupoo\.com\/([^/]+)\//);
+  if (m) referer = `https://${m[1]}.x.yupoo.com/`;
+
+  const options = {
+    headers: {
+      'Referer':    referer,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    },
+  };
+
+  const proto = url.startsWith('https') ? https : http;
+  proto.get(url, options, (imgRes) => {
+    const ct = imgRes.headers['content-type'] || '';
+    if (!ct.startsWith('image/')) { imgRes.resume(); return res.status(403).end(); }
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    imgRes.pipe(res);
+  }).on('error', () => res.status(502).end());
 });
 
 // Validate admin password
