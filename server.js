@@ -1,9 +1,41 @@
-const express = require('express');
-const path    = require('path');
-const { Pool } = require('pg');
-const fs      = require('fs');
-const https   = require('https');
-const http    = require('http');
+const express   = require('express');
+const path      = require('path');
+const { Pool }  = require('pg');
+const fs        = require('fs');
+const https     = require('https');
+const http      = require('http');
+
+// ── AI PROVIDERS ──────────────────────────────────────────
+let _openai = null, _anthropic = null;
+try {
+  if (process.env.OPENAI_API_KEY) {
+    const { OpenAI } = require('openai');
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    console.log('AI: OpenAI ready');
+  }
+} catch(e) { console.warn('AI: OpenAI unavailable:', e.message); }
+
+try {
+  if (process.env.ANTHROPIC_API_KEY) {
+    const Anthropic = require('@anthropic-ai/sdk');
+    _anthropic = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
+    console.log('AI: Anthropic ready');
+  }
+} catch(e) { console.warn('AI: Anthropic unavailable:', e.message); }
+
+// ── GOOGLE SHEETS ─────────────────────────────────────────
+let _sheets = null;
+try {
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON && process.env.GOOGLE_SHEETS_ID) {
+    const { google } = require('googleapis');
+    const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    const auth  = new google.auth.GoogleAuth({ credentials: creds, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
+    _sheets = google.sheets({ version: 'v4', auth });
+    console.log('Sheets: ready');
+  } else {
+    console.warn('Sheets: GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SHEETS_ID not set — sync disabled');
+  }
+} catch(e) { console.warn('Sheets: init failed:', e.message); }
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -70,6 +102,37 @@ async function initDB() {
       id INTEGER PRIMARY KEY DEFAULT 1,
       data JSONB NOT NULL,
       updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // CRM: customers
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id          SERIAL PRIMARY KEY,
+      whatsapp    TEXT UNIQUE NOT NULL,
+      name        TEXT,
+      email       TEXT,
+      address     TEXT,
+      city        TEXT,
+      notes       TEXT,
+      sheets_row  INTEGER,
+      created_at  TIMESTAMP DEFAULT NOW(),
+      updated_at  TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // CRM: conversation threads
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id           SERIAL PRIMARY KEY,
+      customer_id  INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      whatsapp     TEXT NOT NULL,
+      messages     JSONB NOT NULL DEFAULT '[]',
+      state        TEXT NOT NULL DEFAULT 'collecting',
+      collected    JSONB NOT NULL DEFAULT '{}',
+      bot_active   BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at   TIMESTAMP DEFAULT NOW(),
+      updated_at   TIMESTAMP DEFAULT NOW()
     );
   `);
 
@@ -381,6 +444,336 @@ app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
     console.error('DELETE /api/orders error', err.message);
     return res.status(500).json({ error: 'Failed' });
   }
+});
+
+// ── AI ABSTRACTION ────────────────────────────────────────
+const AI_SYSTEM_PROMPT = `You are the AI assistant for UNLMTD Wholesale Supply Co., a clothing and accessories wholesale business in the Bahamas. Your job is to collect order information from customers via WhatsApp in a friendly, professional way.
+
+Collect in this order (skip already-collected fields):
+1. Customer name
+2. What item(s) they want (they can browse the catalog at https://unlmtdwholesale.up.railway.app)
+3. Size(s) needed
+4. Email address
+5. Shipping address and city
+
+Rules:
+- Be warm, concise, and on-brand. Don't be robotic.
+- If the customer asks about price negotiation, bulk discounts, complaints, customs, or anything you can't answer confidently → set needs_human: true
+- Never invent prices or shipping costs
+- Once all 5 fields are collected, thank them and say the team will confirm their order shortly
+
+Always respond with valid JSON only:
+{ "reply": "your message text", "collected": { "name": null, "item": null, "size": null, "email": null, "address": null, "city": null }, "needs_human": false }
+
+Only include fields in "collected" that you are extracting FROM THIS specific message. Omit fields not mentioned.`;
+
+async function callAI(conversationMessages) {
+  const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
+
+  if (provider === 'claude' && _anthropic) {
+    const msgs = conversationMessages.map(m => ({ role: m.role, content: m.content }));
+    const resp = await _anthropic.messages.create({
+      model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5',
+      max_tokens: 512,
+      system: AI_SYSTEM_PROMPT,
+      messages: msgs,
+    });
+    return JSON.parse(resp.content[0].text);
+  }
+
+  if (_openai) {
+    const resp = await _openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      max_tokens: 512,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: AI_SYSTEM_PROMPT },
+        ...conversationMessages.map(m => ({ role: m.role, content: m.content })),
+      ],
+    });
+    return JSON.parse(resp.choices[0].message.content);
+  }
+
+  throw new Error('No AI provider configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.');
+}
+
+// ── WHATSAPP HELPERS ──────────────────────────────────────
+async function sendWhatsAppMessage(to, text) {
+  const pid = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const tok = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!pid || !tok) { console.warn('WhatsApp: credentials not set, skipping send'); return; }
+
+  const body = JSON.stringify({
+    messaging_product: 'whatsapp',
+    to,
+    type: 'text',
+    text: { body: text },
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'graph.facebook.com',
+      path: `/v19.0/${pid}/messages`,
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+    }, res => { res.resume(); resolve(); });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+// ── GOOGLE SHEETS SYNC ────────────────────────────────────
+const SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
+
+async function syncCustomerToSheets(customer) {
+  if (!_sheets || !SHEETS_ID) return;
+  try {
+    const row = [
+      customer.whatsapp, customer.name || '', customer.email || '',
+      customer.address || '', customer.city || '', customer.notes || '',
+      customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '',
+      new Date().toLocaleDateString(),
+    ];
+    if (customer.sheets_row) {
+      await _sheets.spreadsheets.values.update({
+        spreadsheetId: SHEETS_ID,
+        range: `Customers!A${customer.sheets_row}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [row] },
+      });
+    } else {
+      const res = await _sheets.spreadsheets.values.append({
+        spreadsheetId: SHEETS_ID,
+        range: 'Customers!A1',
+        valueInputOption: 'RAW',
+        requestBody: { values: [row] },
+      });
+      const updatedRange = res.data.updates.updatedRange;
+      const rowNum = parseInt(updatedRange.match(/\d+$/)?.[0]);
+      if (rowNum) {
+        await pool.query('UPDATE customers SET sheets_row=$1 WHERE id=$2', [rowNum, customer.id]);
+      }
+    }
+  } catch (e) { console.warn('Sheets sync error:', e.message); }
+}
+
+async function syncOrderToSheets(order) {
+  if (!_sheets || !SHEETS_ID) return;
+  try {
+    await _sheets.spreadsheets.values.append({
+      spreadsheetId: SHEETS_ID,
+      range: 'Orders!A1',
+      valueInputOption: 'RAW',
+      requestBody: { values: [[
+        order.code, order.customer || '', order.summary || '',
+        String(order.stage || 0), order.eta || '',
+        order.created_at ? new Date(order.created_at).toLocaleDateString() : '',
+      ]] },
+    });
+  } catch (e) { console.warn('Sheets order sync error:', e.message); }
+}
+
+// ── WHATSAPP CONVERSATION ENGINE ──────────────────────────
+async function handleIncoming(from, text) {
+  try {
+    // Upsert customer
+    let custRes = await pool.query(
+      `INSERT INTO customers (whatsapp) VALUES ($1)
+       ON CONFLICT (whatsapp) DO UPDATE SET updated_at=NOW()
+       RETURNING *`, [from]
+    );
+    const customer = custRes.rows[0];
+
+    // Load or create conversation
+    let convRes = await pool.query(
+      `SELECT * FROM conversations WHERE whatsapp=$1 AND state != 'closed' ORDER BY id DESC LIMIT 1`,
+      [from]
+    );
+    let conv;
+    if (convRes.rows.length === 0) {
+      const r = await pool.query(
+        `INSERT INTO conversations (customer_id, whatsapp, messages, collected) VALUES ($1,$2,'[]','{}') RETURNING *`,
+        [customer.id, from]
+      );
+      conv = r.rows[0];
+    } else {
+      conv = convRes.rows[0];
+    }
+
+    // Append incoming message
+    const messages = conv.messages || [];
+    messages.push({ role: 'user', content: text, ts: Date.now() });
+
+    // If bot is off, just save
+    if (!conv.bot_active) {
+      await pool.query(
+        `UPDATE conversations SET messages=$1, updated_at=NOW() WHERE id=$2`,
+        [JSON.stringify(messages), conv.id]
+      );
+      return;
+    }
+
+    // Call AI
+    let aiResult;
+    try {
+      aiResult = await callAI(messages.map(m => ({ role: m.role, content: m.content })));
+    } catch (aiErr) {
+      console.error('AI error:', aiErr.message);
+      await sendWhatsAppMessage(from, "Sorry, I'm having a moment — the team will be with you shortly!");
+      await pool.query(
+        `UPDATE conversations SET messages=$1, state='needs_human', updated_at=NOW() WHERE id=$2`,
+        [JSON.stringify(messages), conv.id]
+      );
+      return;
+    }
+
+    const reply     = aiResult.reply || '';
+    const newFields = aiResult.collected || {};
+    const needsHuman = !!aiResult.needs_human;
+
+    // Merge collected fields
+    const collected = Object.assign({}, conv.collected || {});
+    Object.keys(newFields).forEach(k => { if (newFields[k]) collected[k] = newFields[k]; });
+
+    // Update customer record with newly collected info
+    const updates = [];
+    if (collected.name)    updates.push(pool.query('UPDATE customers SET name=$1,    updated_at=NOW() WHERE id=$2', [collected.name,    customer.id]));
+    if (collected.email)   updates.push(pool.query('UPDATE customers SET email=$1,   updated_at=NOW() WHERE id=$2', [collected.email,   customer.id]));
+    if (collected.address) updates.push(pool.query('UPDATE customers SET address=$1, updated_at=NOW() WHERE id=$2', [collected.address, customer.id]));
+    if (collected.city)    updates.push(pool.query('UPDATE customers SET city=$1,    updated_at=NOW() WHERE id=$2', [collected.city,    customer.id]));
+    await Promise.all(updates);
+
+    // Append AI reply
+    messages.push({ role: 'assistant', content: reply, ts: Date.now() });
+
+    // Determine new state
+    const allCollected = collected.name && collected.item && collected.size && collected.email && collected.address;
+    const newState = needsHuman ? 'needs_human' : (allCollected ? 'closed' : 'collecting');
+
+    await pool.query(
+      `UPDATE conversations SET messages=$1, state=$2, collected=$3, updated_at=NOW() WHERE id=$4`,
+      [JSON.stringify(messages), newState, JSON.stringify(collected), conv.id]
+    );
+
+    // Send reply
+    await sendWhatsAppMessage(from, reply);
+
+    // Sync to Sheets
+    const updatedCust = (await pool.query('SELECT * FROM customers WHERE id=$1', [customer.id])).rows[0];
+    await syncCustomerToSheets(updatedCust);
+
+  } catch (err) {
+    console.error('handleIncoming error:', err.message);
+  }
+}
+
+// ── WHATSAPP WEBHOOK ──────────────────────────────────────
+app.get('/api/whatsapp/webhook', (req, res) => {
+  const mode      = req.query['hub.mode'];
+  const token     = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  res.status(403).end();
+});
+
+app.post('/api/whatsapp/webhook', (req, res) => {
+  res.status(200).end(); // ACK immediately to Meta
+  try {
+    const entry   = req.body?.entry?.[0];
+    const changes = entry?.changes?.[0]?.value;
+    const message = changes?.messages?.[0];
+    if (!message || message.type !== 'text') return;
+    const from = message.from;
+    const text = message.text?.body || '';
+    if (from && text) handleIncoming(from, text).catch(e => console.error('webhook handler:', e.message));
+  } catch (e) { console.error('webhook parse error:', e.message); }
+});
+
+// ── CRM ADMIN ENDPOINTS ───────────────────────────────────
+
+// List customers
+app.get('/api/customers', requireAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT c.*,
+        (SELECT state FROM conversations WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) AS conv_state,
+        (SELECT updated_at FROM conversations WHERE customer_id=c.id ORDER BY id DESC LIMIT 1) AS last_activity
+      FROM customers c ORDER BY c.updated_at DESC
+    `);
+    return res.json(r.rows);
+  } catch (e) { console.error('GET /api/customers', e.message); return res.status(500).json({ error: 'Failed' }); }
+});
+
+// Get single customer + conversations
+app.get('/api/customers/:id', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ error: 'Bad id' });
+  try {
+    const cust = (await pool.query('SELECT * FROM customers WHERE id=$1', [id])).rows[0];
+    if (!cust) return res.status(404).json({ error: 'Not found' });
+    const convs = (await pool.query('SELECT * FROM conversations WHERE customer_id=$1 ORDER BY id DESC', [id])).rows;
+    return res.json({ ...cust, conversations: convs });
+  } catch (e) { console.error('GET /api/customers/:id', e.message); return res.status(500).json({ error: 'Failed' }); }
+});
+
+// Update customer
+app.put('/api/customers/:id', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { name, email, address, city, notes } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'Bad id' });
+  try {
+    await pool.query(
+      'UPDATE customers SET name=$1,email=$2,address=$3,city=$4,notes=$5,updated_at=NOW() WHERE id=$6',
+      [name||null, email||null, address||null, city||null, notes||null, id]
+    );
+    const updated = (await pool.query('SELECT * FROM customers WHERE id=$1', [id])).rows[0];
+    await syncCustomerToSheets(updated);
+    return res.json({ success: true });
+  } catch (e) { console.error('PUT /api/customers/:id', e.message); return res.status(500).json({ error: 'Failed' }); }
+});
+
+// List conversations (optionally filter by state)
+app.get('/api/conversations', requireAdmin, async (req, res) => {
+  try {
+    const state = req.query.state;
+    const r = state
+      ? await pool.query('SELECT * FROM conversations WHERE state=$1 ORDER BY updated_at DESC', [state])
+      : await pool.query('SELECT * FROM conversations ORDER BY updated_at DESC LIMIT 100');
+    return res.json(r.rows);
+  } catch (e) { console.error('GET /api/conversations', e.message); return res.status(500).json({ error: 'Failed' }); }
+});
+
+// Toggle bot on/off for a conversation
+app.put('/api/conversations/:id/bot', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { bot_active } = req.body || {};
+  if (!id || bot_active === undefined) return res.status(400).json({ error: 'Bad request' });
+  try {
+    await pool.query('UPDATE conversations SET bot_active=$1, updated_at=NOW() WHERE id=$2', [!!bot_active, id]);
+    return res.json({ success: true });
+  } catch (e) { console.error('PUT /api/conversations/:id/bot', e.message); return res.status(500).json({ error: 'Failed' }); }
+});
+
+// Send manual reply as admin
+app.post('/api/conversations/:id/reply', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { text } = req.body || {};
+  if (!id || !text) return res.status(400).json({ error: 'Missing text' });
+  try {
+    const conv = (await pool.query('SELECT * FROM conversations WHERE id=$1', [id])).rows[0];
+    if (!conv) return res.status(404).json({ error: 'Not found' });
+    const messages = conv.messages || [];
+    messages.push({ role: 'assistant', content: text, ts: Date.now() });
+    await pool.query(
+      'UPDATE conversations SET messages=$1, updated_at=NOW() WHERE id=$2',
+      [JSON.stringify(messages), id]
+    );
+    await sendWhatsAppMessage(conv.whatsapp, text);
+    return res.json({ success: true });
+  } catch (e) { console.error('POST /api/conversations/:id/reply', e.message); return res.status(500).json({ error: 'Failed' }); }
 });
 
 // Image proxy — bypasses hotlink protection for known supplier domains
