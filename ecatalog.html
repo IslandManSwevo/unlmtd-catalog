@@ -427,6 +427,14 @@
         <div id="import-imgs-list"></div>
         <button type="button" onclick="addImportImgField('')" class="btn-secondary" style="margin-top:8px;width:100%;padding:8px;font-size:10px;letter-spacing:1.5px;">＋ Add Photo URL</button>
       </div>
+      <div class="field-group" style="background:rgba(201,168,76,0.06);border:1px solid var(--border);padding:12px 14px;">
+        <label class="field-label">⚡ Quick Price — type your cost, prices auto-fill</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div><label class="field-label">Cost (BSD)</label><input class="field-input" id="import-cost" type="text" placeholder="0.00" oninput="applyQuickPrice()"></div>
+          <div><label class="field-label">Retail +%</label><input class="field-input" id="import-mk-retail" type="number" value="50" oninput="applyQuickPrice()"></div>
+          <div><label class="field-label">Bulk +%</label><input class="field-input" id="import-mk-bulk" type="number" value="30" oninput="applyQuickPrice()"></div>
+        </div>
+      </div>
       <div class="field-row">
         <div class="field-group"><label class="field-label">Retail Price (BSD)</label><input class="field-input" id="import-price" type="text" placeholder="0.00"></div>
         <div class="field-group"><label class="field-label">Bulk Price (BSD)</label><input class="field-input" id="import-bulk" type="text" placeholder="0.00"></div>
@@ -1100,7 +1108,10 @@ function buildBookmarklet() {
     imgs=imgs.map(function(x){return x.u;});
     var dm=document.querySelector('meta[name="description"],meta[property="og:description"]');
     d=dm?dm.content:'';
-    window.open('${base}/?_import=1&n='+encodeURIComponent(n)+'&imgs='+encodeURIComponent(JSON.stringify(imgs))+'&d='+encodeURIComponent(d)+'&src='+encodeURIComponent(src),'_blank');
+    var price='';
+    var pm=(document.body.innerText||'').match(/[$\\u00a5\\uffe5]\\s?(\\d{1,5}(?:[.,]\\d{1,2})?)/);
+    if(pm)price=pm[1].replace(',','');
+    window.open('${base}/?_import=1&n='+encodeURIComponent(n)+'&imgs='+encodeURIComponent(JSON.stringify(imgs))+'&d='+encodeURIComponent(d)+'&src='+encodeURIComponent(src)+'&price='+encodeURIComponent(price),'_blank');
   })();`.replace(/\s+/g,' ').trim();
   return code;
 }
@@ -1115,16 +1126,85 @@ function closeBookmarkletModal() {
 }
 
 // ── IMPORT MODAL ──────────────────────────────────────────
+// Keyword → subcategory synonym map for auto-categorization
+const CATEGORY_HINTS = [
+  // [regex, catId, sub]
+  [/\b(tee|t-shirt|tshirt)\b/i, 'mens', 'T-Shirts'],
+  [/\b(polo|button|dress shirt)\b/i, 'mens', 'Shirts & Polos'],
+  [/\b(hoodie|sweatshirt|crewneck|sweater)\b/i, 'mens', 'Hoodies & Sweats'],
+  [/\b(jacket|coat|puffer|windbreaker|outerwear)\b/i, 'mens', 'Jackets & Outerwear'],
+  [/\b(suit|blazer|tuxedo)\b/i, 'mens', 'Suits & Formal'],
+  [/\b(blouse|crop top|tank|women.?s top)\b/i, 'womens', 'Tops & Blouses'],
+  [/\b(dress|gown)\b/i, 'womens', 'Dresses'],
+  [/\b(co-?ord|two piece|2 piece|set)\b/i, 'womens', 'Sets & Co-ords'],
+  [/\b(skirt)\b/i, 'womens', 'Skirts'],
+  [/\b(legging|yoga|activewear|sports bra)\b/i, 'womens', 'Activewear'],
+  [/\b(jean|denim)\b/i, 'jeans', 'Jeans'],
+  [/\b(cargo|utility)\b/i, 'jeans', 'Cargo & Utility'],
+  [/\b(short)\b/i, 'jeans', 'Shorts'],
+  [/\b(jogger|sweatpant|trackpant)\b/i, 'jeans', 'Joggers & Sweats'],
+  [/\b(slack|dress pant|trouser|chino)\b/i, 'jeans', 'Dress Pants'],
+  [/\b(sneaker|jordan|air force|af1|dunk|yeezy|nike|adidas|trainer)\b/i, 'shoes', 'Sneakers'],
+  [/\b(boot)\b/i, 'shoes', 'Boots'],
+  [/\b(oxford|derby|dress shoe|brogue)\b/i, 'shoes', 'Dress Shoes'],
+  [/\b(heel|stiletto|pump)\b/i, 'shoes', 'Heels'],
+  [/\b(loafer|moccasin|casual shoe)\b/i, 'shoes', 'Loafers & Casual'],
+  [/\b(slide|foam)\b/i, 'slides', 'Foam Slides'],
+  [/\b(sandal|strap)\b/i, 'slides', 'Strap Sandals'],
+  [/\b(platform)\b/i, 'slides', 'Platform'],
+  [/\b(slipper)\b/i, 'slides', 'House Slippers'],
+  [/\b(crossbody|sling bag)\b/i, 'bags', 'Crossbody'],
+  [/\b(backpack|rucksack)\b/i, 'bags', 'Backpacks'],
+  [/\b(tote|shopper|handbag)\b/i, 'bags', 'Totes & Shoppers'],
+  [/\b(wallet|belt)\b/i, 'bags', 'Wallets & Belts'],
+  [/\b(hat|cap|beanie)\b/i, 'bags', 'Hats & Caps'],
+  [/\b(smart ?watch|apple watch|digital)\b/i, 'watches', 'Smart & Digital'],
+  [/\b(watch)\b/i, 'watches', 'Everyday'],
+  [/\b(sunglass|shades)\b/i, 'eyewear', 'Sunglasses'],
+  [/\b(blue light)\b/i, 'eyewear', 'Blue Light'],
+  [/\b(glasses|frame|eyewear)\b/i, 'eyewear', 'Fashion Frames'],
+];
+
+function guessCategory(name, desc) {
+  const text = ((name || '') + ' ' + (desc || '')).toLowerCase();
+  for (const [re, catId, sub] of CATEGORY_HINTS) {
+    if (re.test(text)) return { catId, sub };
+  }
+  return null;
+}
+
+function applyQuickPrice() {
+  const cost   = parseFloat(document.getElementById('import-cost').value) || 0;
+  if (!cost) return;
+  const mkR    = parseFloat(document.getElementById('import-mk-retail').value) || 0;
+  const mkB    = parseFloat(document.getElementById('import-mk-bulk').value)   || 0;
+  document.getElementById('import-price').value = (cost * (1 + mkR / 100)).toFixed(2);
+  document.getElementById('import-bulk').value  = (cost * (1 + mkB / 100)).toFixed(2);
+}
+
 function openImportModal(data) {
   if (!document.body.classList.contains('admin-mode')) return;
   const catSel = document.getElementById('import-cat');
   catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
+
+  // Auto-categorize, else fall back to last-used pair
+  const guess = guessCategory(data.n, data.d);
+  const last  = { catId: localStorage.getItem('unlmtd_last_cat'), sub: localStorage.getItem('unlmtd_last_sub') };
+  const pick  = guess || (last.catId ? last : null);
+  if (pick && CATEGORIES.some(c => c.id === pick.catId)) catSel.value = pick.catId;
   updateImportSubs();
+  if (pick && pick.sub) {
+    const subSel = document.getElementById('import-sub');
+    if ([...subSel.options].some(o => o.value === pick.sub)) subSel.value = pick.sub;
+  }
+
   document.getElementById('import-name').value  = data.n   || '';
   document.getElementById('import-desc').value  = data.d   || '';
   document.getElementById('import-src').value   = data.src || '';
+  document.getElementById('import-cost').value  = data.price || '';
   document.getElementById('import-price').value = '';
   document.getElementById('import-bulk').value  = '';
+  applyQuickPrice();
   document.getElementById('import-imgs-list').innerHTML = '';
   const importImgs = data.imgs?.length ? data.imgs : (data.im ? [data.im] : []);
   if (importImgs.length) importImgs.forEach(u => addImportImgField(u)); else addImportImgField('');
@@ -1155,6 +1235,8 @@ async function saveImportedItem() {
   const catId = document.getElementById('import-cat').value;
   const sub   = document.getElementById('import-sub').value;
   const cat   = CATEGORIES.find(c => c.id === catId);
+  localStorage.setItem('unlmtd_last_cat', catId);
+  localStorage.setItem('unlmtd_last_sub', sub);
   const item  = {
     name:         document.getElementById('import-name').value.trim()  || 'Untitled Item',
     desc:         document.getElementById('import-desc').value.trim()  || '',
@@ -1341,7 +1423,7 @@ function checkImportParams() {
   let parsedImgs = [];
   try { parsedImgs = JSON.parse(p.get('imgs') || '[]'); } catch(e) {}
   if (!parsedImgs.length && p.get('im')) parsedImgs = [p.get('im')];
-  const data = { n: p.get('n')||'', imgs: parsedImgs, d: p.get('d')||'', src: p.get('src')||'' };
+  const data = { n: p.get('n')||'', imgs: parsedImgs, d: p.get('d')||'', src: p.get('src')||'', price: p.get('price')||'' };
   if (document.body.classList.contains('admin-mode')) {
     openImportModal(data);
   } else {
