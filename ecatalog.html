@@ -104,6 +104,13 @@
   .nav-tab:hover { color: var(--off-white); }
   .nav-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
 
+  /* Desktop subcategory dropdown */
+  .nav-dropdown { position: fixed; background: #161616; border: 1px solid var(--border); border-top: 2px solid var(--gold); min-width: 190px; padding: 6px 0; z-index: 95; display: none; box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
+  .nav-dropdown.open { display: block; }
+  .nav-dd-item { padding: 9px 18px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-mid); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+  .nav-dd-item:hover { background: rgba(201,168,76,0.12); color: var(--gold); padding-left: 22px; }
+  @media (hover: none) { .nav-dropdown { display: none !important; } }
+
   /* ── MAIN ── */
   .main { max-width: 1200px; margin: 0 auto; padding: 40px 32px 80px; }
 
@@ -129,7 +136,7 @@
 
   /* ── PRODUCT GRID ── */
   .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px; }
-  .product-card { background: var(--mid); position: relative; overflow: hidden; transition: transform 0.2s; }
+  .product-card { background: var(--mid); position: relative; overflow: hidden; transition: transform 0.2s; display: flex; flex-direction: column; }
   body.admin-mode .product-card { cursor: pointer; }
   body.admin-mode .product-card:hover { transform: translateY(-2px); }
   body.admin-mode .product-card:hover .card-overlay { opacity: 1; }
@@ -161,12 +168,15 @@
   }
   body.admin-mode .product-card:hover .order-btn { transform: translateY(0); }
 
-  .card-body { padding: 16px 18px; border-top: 1px solid rgba(255,255,255,0.04); }
-  .card-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; display: block; }
+  .card-body { padding: 16px 18px; border-top: 1px solid rgba(255,255,255,0.04); flex: 1 1 auto; }
+  /* badge + NEW as corner ribbons over the image */
+  .card-badge { position: absolute; top: 10px; left: 10px; z-index: 3; font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #000; background: var(--gold); padding: 3px 9px; }
+  .card-new { position: absolute; top: 10px; right: 10px; z-index: 3; font-family: 'Barlow Condensed', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); background: rgba(12,12,12,0.82); border: 1px solid var(--gold); padding: 3px 8px; }
+  .photo-count { position: absolute; bottom: 8px; right: 8px; z-index: 2; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; color: #fff; background: rgba(0,0,0,0.6); padding: 2px 8px; pointer-events: none; }
   .card-name { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 0.5px; color: var(--off-white); margin-bottom: 4px; line-height: 1.2; }
   .card-desc { font-size: 12px; font-weight: 300; color: var(--text-dim); margin-bottom: 12px; line-height: 1.5; }
-  .card-footer { display: flex; align-items: center; justify-content: space-between; }
-  .card-price { font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: var(--gold); letter-spacing: 1px; }
+  .card-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+  .card-price { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: var(--gold); letter-spacing: 1px; line-height: 1; }
   .card-price span { font-family: 'Barlow', sans-serif; font-size: 11px; font-weight: 400; color: var(--text-dim); letter-spacing: 0; margin-left: 3px; }
   .card-price-por { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.25); padding: 4px 10px; }
   .card-sizes { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
@@ -373,6 +383,7 @@
 
 <!-- CATEGORY TABS -->
 <div class="nav-wrap" id="nav-tabs"></div>
+<div class="nav-dropdown" id="nav-dropdown" onmouseenter="clearTimeout(_ddTimer)" onmouseleave="scheduleHideDropdown()"></div>
 
 <!-- MAIN -->
 <div class="main">
@@ -823,13 +834,43 @@ async function init() {
 }
 
 // ── RENDER ────────────────────────────────────────────────
+let _ddTimer = null;
+
 function buildTabs() {
   const nav = document.getElementById('nav-tabs');
-  nav.innerHTML = CATEGORIES.map(c => `
-    <div class="nav-tab ${c.id === activeCat ? 'active' : ''}" onclick="switchCat('${c.id}')">
-      ${c.icon} ${c.label}
-    </div>
-  `).join('');
+  nav.innerHTML = CATEGORIES.map(c =>
+    `<div class="nav-tab ${c.id === activeCat ? 'active' : ''}" data-cat="${c.id}" onclick="switchCat('${c.id}')">${c.icon} ${c.label}</div>`
+  ).join('');
+  nav.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('mouseenter', () => showNavDropdown(tab, tab.dataset.cat));
+    tab.addEventListener('mouseleave', scheduleHideDropdown);
+  });
+}
+
+function showNavDropdown(tab, catId) {
+  if (window.matchMedia('(hover: none)').matches) return;
+  const cat = CATEGORIES.find(c => c.id === catId);
+  if (!cat) return;
+  const dd = document.getElementById('nav-dropdown');
+  dd.innerHTML = cat.subs.map(s =>
+    `<div class="nav-dd-item" onclick="jumpToSub('${catId}', '${s.replace(/'/g, "\\'")}')">${s}</div>`
+  ).join('');
+  const r = tab.getBoundingClientRect();
+  dd.style.left = Math.min(r.left, window.innerWidth - 200) + 'px';
+  dd.style.top  = r.bottom + 'px';
+  dd.classList.add('open');
+  clearTimeout(_ddTimer);
+}
+
+function scheduleHideDropdown() {
+  _ddTimer = setTimeout(() => document.getElementById('nav-dropdown').classList.remove('open'), 180);
+}
+
+function jumpToSub(catId, sub) {
+  document.getElementById('nav-dropdown').classList.remove('open');
+  switchCat(catId);
+  setSub(catId, sub);
+  document.getElementById(`page-${catId}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function buildPages() {
@@ -955,6 +996,7 @@ function renderCard(item, catId, idx) {
       <button class="carousel-prev" onclick="event.stopPropagation();carouselMove(this.parentElement,-1)">‹</button>
       <button class="carousel-next" onclick="event.stopPropagation();carouselMove(this.parentElement,1)">›</button>
       <div class="carousel-dots">${dots}</div>
+      <div class="photo-count">📷 ${imgs.length}</div>
     </div>`;
   }
   const priceHtml      = item.por
@@ -973,14 +1015,18 @@ function renderCard(item, catId, idx) {
     ? `<div class="card-sold-out"><div class="sold-out-banner">SOLD OUT</div></div>`
     : '';
   const actionsClass = item.soldOut ? 'card-actions is-sold-out' : 'card-actions';
+  const isNew = item._createdAt && (Date.now() - new Date(item._createdAt).getTime()) < 14 * 864e5;
+  const badgeRibbon = item.badge ? `<span class="card-badge">${item.badge}</span>` : '';
+  const newRibbon   = isNew ? `<span class="card-new">NEW</span>` : '';
 
   return `
     <div class="product-card" onclick="openModal('${catId}', ${idx}, null)">
       ${imgContent}
+      ${badgeRibbon}
+      ${newRibbon}
       ${soldOutOverlay}
       <div class="card-overlay"><button class="order-btn">✏️ Edit</button></div>
       <div class="card-body">
-        ${item.badge ? `<span class="card-badge">${item.badge}</span>` : ''}
         <div class="card-name">${item.name}</div>
         <div class="card-desc">${item.desc}</div>
         <div class="card-footer">
@@ -1017,11 +1063,8 @@ function updateTotalCount() {
 // ── NAVIGATION ────────────────────────────────────────────
 function switchCat(catId) {
   document.querySelectorAll('.cat-page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(`page-${catId}`).classList.add('active');
-  document.querySelectorAll('.nav-tab').forEach(t => {
-    if (t.textContent.trim().includes(CATEGORIES.find(c => c.id === catId).label)) t.classList.add('active');
-  });
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.cat === catId));
   activeCat = catId;
 }
 
