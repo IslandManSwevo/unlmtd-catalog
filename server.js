@@ -6,7 +6,23 @@ const https     = require('https');
 const http      = require('http');
 
 // ── AI PROVIDERS ──────────────────────────────────────────
-let _openai = null, _anthropic = null;
+let _openai = null, _openrouter = null, _anthropic = null;
+
+try {
+  if (process.env.OPENROUTER_API_KEY) {
+    const { OpenAI } = require('openai');
+    _openrouter = new OpenAI({
+      apiKey:  process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+      defaultHeaders: {
+        'HTTP-Referer': 'https://unlmtdwholesale.up.railway.app',
+        'X-Title':      'UNLMTD Wholesale',
+      },
+    });
+    console.log('AI: OpenRouter ready');
+  }
+} catch(e) { console.warn('AI: OpenRouter unavailable:', e.message); }
+
 try {
   if (process.env.OPENAI_API_KEY) {
     const { OpenAI } = require('openai');
@@ -468,10 +484,32 @@ Always respond with valid JSON only:
 Only include fields in "collected" that you are extracting FROM THIS specific message. Omit fields not mentioned.`;
 
 async function callAI(conversationMessages) {
-  const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
+  const provider = (process.env.AI_PROVIDER || 'openrouter').toLowerCase();
+  const msgs = conversationMessages.map(m => ({ role: m.role, content: m.content }));
 
+  // OpenRouter (default — free models available)
+  if (provider === 'openrouter' && _openrouter) {
+    const resp = await _openrouter.chat.completions.create({
+      model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct:free',
+      max_tokens: 512,
+      messages: [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...msgs],
+    });
+    return JSON.parse(resp.choices[0].message.content);
+  }
+
+  // OpenAI fallback
+  if (provider === 'openai' && _openai) {
+    const resp = await _openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      max_tokens: 512,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...msgs],
+    });
+    return JSON.parse(resp.choices[0].message.content);
+  }
+
+  // Claude fallback
   if (provider === 'claude' && _anthropic) {
-    const msgs = conversationMessages.map(m => ({ role: m.role, content: m.content }));
     const resp = await _anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5',
       max_tokens: 512,
@@ -481,20 +519,7 @@ async function callAI(conversationMessages) {
     return JSON.parse(resp.content[0].text);
   }
 
-  if (_openai) {
-    const resp = await _openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      max_tokens: 512,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: AI_SYSTEM_PROMPT },
-        ...conversationMessages.map(m => ({ role: m.role, content: m.content })),
-      ],
-    });
-    return JSON.parse(resp.choices[0].message.content);
-  }
-
-  throw new Error('No AI provider configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.');
+  throw new Error('No AI provider configured. Set OPENROUTER_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY.');
 }
 
 // ── WHATSAPP HELPERS ──────────────────────────────────────
