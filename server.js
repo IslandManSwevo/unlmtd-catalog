@@ -72,6 +72,22 @@ async function initDB() {
       updated_at TIMESTAMP DEFAULT NOW()
     );
   `);
+
+  // orders table: customer order tracking by supplier shipping code
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      customer TEXT,
+      summary TEXT,
+      img TEXT,
+      stage INTEGER NOT NULL DEFAULT 0,
+      eta TEXT,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
 }
 
 // Cleanup expired admin sessions
@@ -128,12 +144,12 @@ app.get('/', (req, res) => {
 // Public: return full catalog grouped by categories
 app.get('/api/catalog', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id, category, data FROM items ORDER BY id');
+    const r = await pool.query('SELECT id, category, data, created_at FROM items ORDER BY id');
     const out = {};
     r.rows.forEach(row => {
       const cat = row.category;
       if (!out[cat]) out[cat] = [];
-      const item = Object.assign({ id: row.id }, row.data);
+      const item = Object.assign({ id: row.id, _createdAt: row.created_at }, row.data);
       out[cat].push(item);
     });
     return res.json(out);
@@ -275,6 +291,94 @@ app.post('/api/logout', async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error('Logout error', err.message);
+    return res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// ── ORDER TRACKING ────────────────────────────────────────
+function normalizeCode(code) {
+  return String(code || '').trim().toUpperCase();
+}
+
+// Public: look up an order by its shipping code (no auth)
+app.get('/api/track/:code', async (req, res) => {
+  const code = normalizeCode(req.params.code);
+  if (!code) return res.status(400).json({ error: 'Missing code' });
+  try {
+    const r = await pool.query(
+      'SELECT code, customer, summary, img, stage, eta, notes, updated_at FROM orders WHERE UPPER(code) = $1',
+      [code]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const o = r.rows[0];
+    return res.json({
+      code: o.code, customer: o.customer, summary: o.summary, img: o.img,
+      stage: o.stage, eta: o.eta, notes: o.notes, updatedAt: o.updated_at,
+    });
+  } catch (err) {
+    console.error('Track error', err.message);
+    return res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Admin: list all orders
+app.get('/api/orders', requireAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, code, customer, summary, img, stage, eta, notes, created_at, updated_at FROM orders ORDER BY updated_at DESC');
+    return res.json(r.rows);
+  } catch (err) {
+    console.error('GET /api/orders error', err.message);
+    return res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Admin: create order
+app.post('/api/orders', requireAdmin, async (req, res) => {
+  const { code, customer, summary, img, stage, eta, notes } = req.body || {};
+  const c = normalizeCode(code);
+  if (!c) return res.status(400).json({ error: 'Missing code' });
+  try {
+    const r = await pool.query(
+      `INSERT INTO orders (code, customer, summary, img, stage, eta, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [c, customer || null, summary || null, img || null, parseInt(stage, 10) || 0, eta || null, notes || null]
+    );
+    return res.status(201).json({ id: r.rows[0].id });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Code already exists' });
+    console.error('POST /api/orders error', err.message);
+    return res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Admin: update order
+app.put('/api/orders/:id', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { code, customer, summary, img, stage, eta, notes } = req.body || {};
+  const c = normalizeCode(code);
+  if (!id || !c) return res.status(400).json({ error: !id ? 'Missing id' : 'Missing code' });
+  try {
+    await pool.query(
+      `UPDATE orders SET code=$1, customer=$2, summary=$3, img=$4, stage=$5, eta=$6, notes=$7, updated_at=NOW() WHERE id=$8`,
+      [c, customer || null, summary || null, img || null, parseInt(stage, 10) || 0, eta || null, notes || null, id]
+    );
+    return res.json({ success: true });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Code already exists' });
+    console.error('PUT /api/orders error', err.message);
+    return res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Admin: delete order
+app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ error: 'Missing id' });
+  try {
+    await pool.query('DELETE FROM orders WHERE id = $1', [id]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /api/orders error', err.message);
     return res.status(500).json({ error: 'Failed' });
   }
 });

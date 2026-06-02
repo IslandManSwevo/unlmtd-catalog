@@ -543,14 +543,14 @@
 <script>
 // ── CATEGORIES ───────────────────────────────────────────
 const CATEGORIES = [
-  { id: 'jeans',   label: "Jeans & Bottoms",    icon: "👖", subs: ["Jeans", "Cargo & Utility", "Shorts", "Joggers & Sweats", "Dress Pants"] },
-  { id: 'mens',    label: "Men's Clothing",      icon: "👔", subs: ["Shirts & Tops", "T-Shirts", "Hoodies & Sweaters", "Jackets & Outerwear", "Suits & Formal"] },
-  { id: 'womens',  label: "Women's Clothing",    icon: "👗", subs: ["Tops & Blouses", "Dresses", "Sets & Co-ords", "Skirts", "Activewear"] },
-  { id: 'shoes',   label: "Shoes & Sneakers",    icon: "👟", subs: ["Sneakers", "Boots", "Dress Shoes", "Heels", "Casual & Loafers"] },
-  { id: 'slides',  label: "Slides & Slippers",   icon: "🩴", subs: ["Foam Slides", "Strap Sandals", "Platform", "House Slippers", "Beach Sandals"] },
-  { id: 'bags',    label: "Bags & Accessories",  icon: "👜", subs: ["Crossbody Bags", "Backpacks", "Totes & Shoppers", "Wallets & Belts", "Hats & Caps"] },
-  { id: 'watches', label: "Watches",             icon: "⌚", subs: ["Casual & Everyday", "Sport & Fitness", "Dress & Formal", "Smart & Digital", "Ladies' Watches"] },
-  { id: 'eyewear', label: "Glasses & Shades",    icon: "🕶️", subs: ["Sunglasses", "Fashion Frames", "Sport Shades", "Reading Glasses", "Blue Light Glasses"] },
+  { id: 'mens',    label: "Menswear",         icon: "👔", subs: ["T-Shirts", "Shirts & Polos", "Hoodies & Sweats", "Jackets & Outerwear", "Suits & Formal"] },
+  { id: 'womens',  label: "Womenswear",       icon: "👗", subs: ["Tops & Blouses", "Dresses", "Sets & Co-ords", "Skirts", "Activewear"] },
+  { id: 'jeans',   label: "Bottoms",          icon: "👖", subs: ["Jeans", "Cargo & Utility", "Shorts", "Joggers & Sweats", "Dress Pants"] },
+  { id: 'shoes',   label: "Footwear",         icon: "👟", subs: ["Sneakers", "Boots", "Dress Shoes", "Heels", "Loafers & Casual"] },
+  { id: 'slides',  label: "Slides & Sandals", icon: "🩴", subs: ["Foam Slides", "Strap Sandals", "Platform", "House Slippers", "Beach Sandals"] },
+  { id: 'bags',    label: "Bags",             icon: "👜", subs: ["Crossbody", "Backpacks", "Totes & Shoppers", "Wallets & Belts", "Hats & Caps"] },
+  { id: 'watches', label: "Watches",          icon: "⌚", subs: ["Everyday", "Sport & Fitness", "Dress & Formal", "Smart & Digital", "Women's Watches"] },
+  { id: 'eyewear', label: "Eyewear",          icon: "🕶️", subs: ["Sunglasses", "Fashion Frames", "Sport Shades", "Reading Glasses", "Blue Light"] },
 ];
 
 const WA_NUMBER = '12427270271';
@@ -790,6 +790,19 @@ function renderSections(catId) {
       <div class="add-label">Add to ${sub}</div>
     </div></div>`;
   });
+
+  // Safety net: items whose sub no longer matches the category's subs still show under "More"
+  if (!filter) {
+    let orphans = items.map((item, i) => ({ item, i })).filter(({ item }) => !cat.subs.includes(item.sub));
+    orphans = sortItems(orphans, sort);
+    if (orphans.length) {
+      totalVisible += orphans.length;
+      html += `<div class="sub-section-header">More <span>${orphans.length} item${orphans.length !== 1 ? 's' : ''}</span></div>`;
+      html += `<div class="product-grid" style="margin-bottom:8px;">`;
+      html += orphans.map(({ item, i }) => renderCard(item, catId, i)).join('');
+      html += `</div>`;
+    }
+  }
 
   if (totalVisible === 0 && !filter) {
     html += `<div style="text-align:center;padding:60px 20px;">
