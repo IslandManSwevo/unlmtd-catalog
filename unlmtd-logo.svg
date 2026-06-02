@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 160" width="520" height="160">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e2c46e;stop-opacity:1"/>
+      <stop offset="50%" style="stop-color:#c9a84c;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#a07830;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="goldLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#c9a84c;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#c9a84c;stop-opacity:0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Dark background pill -->
+  <rect x="0" y="0" width="520" height="160" rx="4" fill="#0c0c0c"/>
+
+  <!-- Subtle top edge highlight -->
+  <rect x="0" y="0" width="520" height="2" rx="1" fill="url(#goldLine)" opacity="0.8"/>
+
+  <!-- Left gold bar accent -->
+  <rect x="28" y="32" width="3" height="96" fill="url(#goldGrad)"/>
+
+  <!-- UNLMTD lettering — custom drawn paths for a tight, condensed industrial wordmark -->
+  <!-- U -->
+  <path d="M44 38 L44 98 Q44 118 64 118 Q84 118 84 98 L84 38 L74 38 L74 100 Q74 108 64 108 Q54 108 54 100 L54 38 Z" fill="#f4f0eb"/>
+
+  <!-- N -->
+  <path d="M96 38 L96 118 L106 118 L106 62 L136 118 L146 118 L146 38 L136 38 L136 94 L106 38 Z" fill="#f4f0eb"/>
+
+  <!-- L -->
+  <path d="M158 38 L158 118 L198 118 L198 108 L168 108 L168 38 Z" fill="#f4f0eb"/>
+
+  <!-- M -->
+  <path d="M210 38 L210 118 L220 118 L220 64 L240 100 L260 64 L260 118 L270 118 L270 38 L258 38 L240 76 L222 38 Z" fill="#f4f0eb"/>
+
+  <!-- T -->
+  <path d="M282 38 L282 48 L307 48 L307 118 L317 118 L317 48 L342 48 L342 38 Z" fill="#f4f0eb"/>
+
+  <!-- D -->
+  <path d="M354 38 L354 118 L378 118 Q408 118 408 78 Q408 38 378 38 Z M364 48 L376 48 Q398 48 398 78 Q398 108 376 108 L364 108 Z" fill="#f4f0eb"/>
+
+  <!-- Gold dot accent -->
+  <circle cx="424" cy="118" r="5" fill="url(#goldGrad)"/>
+
+  <!-- Tagline -->
+  <text x="44" y="142" font-family="'Courier New', monospace" font-size="9" font-weight="400" letter-spacing="5" fill="#c9a84c" opacity="0.9">WHOLESALE · SUPPLY CO.</text>
+
+</svg>

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e2c46e;stop-opacity:1"/>
+      <stop offset="50%" style="stop-color:#c9a84c;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#a07830;stop-opacity:1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="160" height="160" rx="12" fill="#0c0c0c"/>
+
+  <!-- Corner gold accents -->
+  <rect x="0" y="0" width="160" height="3" rx="1" fill="url(#goldGrad)" opacity="0.7"/>
+  <rect x="0" y="0" width="3" height="160" rx="1" fill="url(#goldGrad)" opacity="0.3"/>
+
+  <!-- UN stacked top -->
+  <text x="80" y="72"
+    font-family="'Arial Black', 'Arial', sans-serif"
+    font-size="52"
+    font-weight="900"
+    font-style="normal"
+    text-anchor="middle"
+    letter-spacing="-2"
+    fill="#f4f0eb">UN</text>
+
+  <!-- LM stacked middle - gold -->
+  <text x="80" y="112"
+    font-family="'Arial Black', 'Arial', sans-serif"
+    font-size="52"
+    font-weight="900"
+    text-anchor="middle"
+    letter-spacing="-2"
+    fill="url(#goldGrad)">LM</text>
+
+  <!-- TD bottom right small -->
+  <text x="138" y="148"
+    font-family="'Courier New', monospace"
+    font-size="13"
+    font-weight="700"
+    text-anchor="end"
+    letter-spacing="1"
+    fill="#c9a84c"
+    opacity="0.8">TD</text>
+
+  <!-- Bottom label -->
+  <text x="80" y="153"
+    font-family="'Courier New', monospace"
+    font-size="7"
+    font-weight="400"
+    text-anchor="middle"
+    letter-spacing="3"
+    fill="#c9a84c"
+    opacity="0.6">WHOLESALE</text>
+
+</svg>
