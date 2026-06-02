@@ -291,6 +291,33 @@
   .sort-select:focus, .sort-select:hover { border-color: var(--gold); color: var(--off-white); }
   .sort-select option { background: #1c1c1c; color: var(--off-white); }
 
+  /* ── ORDER TRACKING TIMELINE ── */
+  .track-head { margin-bottom: 18px; }
+  .track-code { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
+  .track-customer { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 1px; color: var(--off-white); margin-top: 2px; }
+  .track-summary { font-size: 13px; color: var(--text-mid); margin-top: 4px; }
+  .timeline { list-style: none; margin: 18px 0 0; padding: 0; }
+  .timeline-step { display: flex; gap: 14px; padding-bottom: 4px; position: relative; }
+  .timeline-step:not(:last-child)::before { content: ''; position: absolute; left: 13px; top: 28px; bottom: -4px; width: 2px; background: rgba(255,255,255,0.1); }
+  .timeline-step.done:not(:last-child)::before { background: var(--gold); }
+  .timeline-dot { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; background: var(--mid); border: 2px solid rgba(255,255,255,0.12); z-index: 1; }
+  .timeline-step.done .timeline-dot { background: var(--gold); border-color: var(--gold); }
+  .timeline-step.current .timeline-dot { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(201,168,76,0.18); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 4px rgba(201,168,76,0.18); } 50% { box-shadow: 0 0 0 7px rgba(201,168,76,0.06); } }
+  .timeline-label { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); padding-top: 5px; padding-bottom: 12px; }
+  .timeline-step.done .timeline-label, .timeline-step.current .timeline-label { color: var(--off-white); }
+  .timeline-step.current .timeline-label { color: var(--gold); }
+  .track-meta { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-mid); line-height: 1.7; }
+  .track-meta strong { color: var(--gold); font-weight: 600; }
+  .track-error { text-align: center; padding: 20px; color: rgba(220,100,100,0.9); font-family: 'Barlow Condensed', sans-serif; letter-spacing: 1px; }
+
+  /* ── ORDERS ADMIN LIST ── */
+  .order-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); margin-bottom: 8px; cursor: pointer; transition: border-color 0.2s; }
+  .order-row:hover { border-color: var(--gold); }
+  .order-row-code { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: 1px; color: var(--off-white); }
+  .order-row-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .order-row-stage { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.25); padding: 4px 10px; white-space: nowrap; }
+
   @media (max-width: 600px) {
     .topbar { padding: 0 16px; }
     .topbar-meta { display: none; }
@@ -312,6 +339,8 @@
   <input class="search-input" id="search-input" type="text" placeholder="🔍 Search items..." oninput="onSearch(this.value)" autocomplete="off">
   <div class="topbar-right">
     <span class="save-indicator" id="save-indicator"></span>
+    <button class="admin-btn" id="track-btn" onclick="openTrackModal()">📦 Track Order</button>
+    <button class="admin-btn" id="orders-btn" onclick="openOrdersModal()" style="display:none;">🗂 Orders</button>
     <button class="admin-btn" id="bookmarklet-btn" onclick="openBookmarkletModal()" style="display:none;">📥 Importer</button>
     <button class="admin-btn" id="admin-toggle-btn" onclick="toggleAdminPanel()">⚙ Admin</button>
     <a class="whatsapp-btn" href="https://wa.me/12427270271" target="_blank">📲 Order Now</a>
@@ -450,6 +479,62 @@
   </div>
 </div>
 
+<!-- TRACK ORDER MODAL (customer) -->
+<div class="modal-backdrop" id="track-modal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <div class="modal-title">📦 TRACK YOUR ORDER</div>
+      <button class="modal-close" onclick="closeTrackModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group" style="margin-bottom:14px;">
+        <label class="field-label">Enter your shipping code</label>
+        <input class="field-input" id="track-code-input" type="text" placeholder="e.g. UNL-2026-0142" onkeydown="if(event.key==='Enter')submitTrack()" autocomplete="off">
+      </div>
+      <button class="btn-primary" style="width:100%;" onclick="submitTrack()">Track</button>
+      <div id="track-result" style="margin-top:24px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ORDERS MANAGER MODAL (admin) -->
+<div class="modal-backdrop" id="orders-modal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <div class="modal-title">🗂 ORDERS</div>
+      <button class="modal-close" onclick="closeOrdersModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <button class="btn-primary" style="width:100%;margin-bottom:18px;" onclick="newOrder()">＋ New Order</button>
+      <div id="orders-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ORDER EDIT MODAL (admin) -->
+<div class="modal-backdrop" id="order-edit-modal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <div class="modal-title" id="order-edit-title">EDIT ORDER</div>
+      <button class="modal-close" onclick="closeOrderEdit()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group"><label class="field-label">Shipping Code *</label><input class="field-input" id="order-code" type="text" placeholder="UNL-2026-0142"></div>
+      <div class="field-group"><label class="field-label">Customer (optional)</label><input class="field-input" id="order-customer" type="text" placeholder="e.g. Maria / WhatsApp name"></div>
+      <div class="field-group"><label class="field-label">Order Summary (optional)</label><input class="field-input" id="order-summary" type="text" placeholder="e.g. 3x sneakers, 2x hoodies"></div>
+      <div class="field-group"><label class="field-label">Current Stage</label><select class="field-input" id="order-stage" style="cursor:pointer;"></select></div>
+      <div class="field-group"><label class="field-label">ETA (optional)</label><input class="field-input" id="order-eta" type="text" placeholder="e.g. June 14, 2026"></div>
+      <div class="field-group"><label class="field-label">Notes (optional)</label><input class="field-input" id="order-notes" type="text" placeholder="e.g. Held at customs"></div>
+      <div class="field-group"><label class="field-label">Photo URL (optional)</label><input class="field-input" id="order-img" type="text" placeholder="https://..."></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="order-delete-btn" onclick="deleteOrder()" style="display:none;">Delete</button>
+      <button class="btn-secondary" onclick="closeOrderEdit()">Cancel</button>
+      <button class="btn-primary" onclick="saveOrder()">Save Order</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADMIN LOGIN MODAL -->
 <div class="modal-backdrop" id="admin-modal">
   <div class="modal" style="max-width:360px;">
@@ -563,6 +648,15 @@ const CATEGORIES = [
 
 const WA_NUMBER = '12427270271';
 
+const ORDER_STAGES = [
+  { label: 'Order Received',       icon: '📝' },
+  { label: 'Paid',                 icon: '💳' },
+  { label: 'Shipped from Supplier',icon: '📦' },
+  { label: 'In Transit',           icon: '✈️' },
+  { label: 'Arrived in Bahamas',   icon: '🏝️' },
+  { label: 'Ready / Delivered',    icon: '✅' },
+];
+
 function proxyImgUrl(url) {
   if (!url) return url;
   if (url.match(/yupoo\.com/i)) return '/api/img?url=' + encodeURIComponent(url);
@@ -627,6 +721,7 @@ function setAdminMode(token) {
   document.body.classList.add('admin-mode');
   document.getElementById('admin-toggle-btn').textContent = '🔓 Admin';
   document.getElementById('bookmarklet-btn').style.display = 'inline-block';
+  document.getElementById('orders-btn').style.display = 'inline-block';
 }
 
 function clearAdminMode() {
@@ -635,6 +730,7 @@ function clearAdminMode() {
   document.body.classList.remove('admin-mode');
   document.getElementById('admin-toggle-btn').textContent = '⚙ Admin';
   document.getElementById('bookmarklet-btn').style.display = 'none';
+  document.getElementById('orders-btn').style.display = 'none';
 }
 
 function toggleAdminPanel() {
@@ -706,6 +802,7 @@ async function init() {
         document.body.classList.add('admin-mode');
         document.getElementById('admin-toggle-btn').textContent = '🔓 Admin';
         document.getElementById('bookmarklet-btn').style.display = 'inline-block';
+        document.getElementById('orders-btn').style.display = 'inline-block';
       } else {
         clearAdminMode();
       }
@@ -1080,6 +1177,9 @@ document.getElementById('modal').addEventListener('click', function(e) { if (e.t
 document.getElementById('admin-modal').addEventListener('click', function(e) { if (e.target === this) closeAdminModal(); });
 document.getElementById('bookmarklet-modal').addEventListener('click', function(e) { if (e.target === this) closeBookmarkletModal(); });
 document.getElementById('import-modal').addEventListener('click', function(e) { if (e.target === this) closeImportModal(); });
+document.getElementById('track-modal').addEventListener('click', function(e) { if (e.target === this) closeTrackModal(); });
+document.getElementById('orders-modal').addEventListener('click', function(e) { if (e.target === this) closeOrdersModal(); });
+document.getElementById('order-edit-modal').addEventListener('click', function(e) { if (e.target === this) closeOrderEdit(); });
 
 // ── BOOKMARKLET ───────────────────────────────────────────
 function buildBookmarklet() {
@@ -1431,6 +1531,174 @@ function checkImportParams() {
     window.history.replaceState({}, '', '/');
     document.getElementById('admin-modal').classList.add('open');
     setTimeout(() => document.getElementById('admin-pw-input').focus(), 100);
+  }
+}
+
+// ── ORDER TRACKING (customer) ────────────────────────────
+function openTrackModal() {
+  document.getElementById('track-result').innerHTML = '';
+  document.getElementById('track-code-input').value = '';
+  document.getElementById('track-modal').classList.add('open');
+  setTimeout(() => document.getElementById('track-code-input').focus(), 100);
+}
+function closeTrackModal() {
+  document.getElementById('track-modal').classList.remove('open');
+}
+
+async function submitTrack() {
+  const code = document.getElementById('track-code-input').value.trim();
+  const box  = document.getElementById('track-result');
+  if (!code) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="track-error" style="color:var(--text-dim);">Looking up…</div>`;
+  try {
+    const res = await fetch('/api/track/' + encodeURIComponent(code));
+    if (res.status === 404) {
+      box.innerHTML = `<div class="track-error">No order found for that code.<br>Double-check the code we sent you on WhatsApp.</div>`;
+      return;
+    }
+    if (!res.ok) { box.innerHTML = `<div class="track-error">Something went wrong. Try again.</div>`; return; }
+    const o = await res.json();
+    box.innerHTML = renderTrackResult(o);
+  } catch {
+    box.innerHTML = `<div class="track-error">Connection error. Try again.</div>`;
+  }
+}
+
+function renderTrackResult(o) {
+  const stage = Math.max(0, Math.min(ORDER_STAGES.length - 1, o.stage || 0));
+  const steps = ORDER_STAGES.map((s, i) => {
+    const cls = i < stage ? 'done' : (i === stage ? 'current' : '');
+    const mark = i < stage ? '✓' : s.icon;
+    return `<li class="timeline-step ${cls}">
+      <div class="timeline-dot">${mark}</div>
+      <div class="timeline-label">${s.label}</div>
+    </li>`;
+  }).join('');
+  const photo = o.img ? `<img src="${proxyImgUrl(o.img)}" style="width:100%;max-height:180px;object-fit:cover;margin-bottom:14px;" onerror="this.style.display='none'">` : '';
+  let meta = '';
+  if (o.eta)   meta += `<div><strong>ETA:</strong> ${o.eta}</div>`;
+  if (o.notes) meta += `<div><strong>Note:</strong> ${o.notes}</div>`;
+  if (o.updatedAt) meta += `<div style="color:var(--text-dim);font-size:11px;margin-top:6px;">Updated ${new Date(o.updatedAt).toLocaleDateString()}</div>`;
+  return `${photo}
+    <div class="track-head">
+      <div class="track-code">Code ${o.code}</div>
+      ${o.customer ? `<div class="track-customer">${o.customer}</div>` : ''}
+      ${o.summary ? `<div class="track-summary">${o.summary}</div>` : ''}
+    </div>
+    <ul class="timeline">${steps}</ul>
+    ${meta ? `<div class="track-meta">${meta}</div>` : ''}`;
+}
+
+// ── ORDERS MANAGER (admin) ───────────────────────────────
+let editingOrderId = null;
+
+async function openOrdersModal() {
+  document.getElementById('orders-modal').classList.add('open');
+  await loadOrders();
+}
+function closeOrdersModal() {
+  document.getElementById('orders-modal').classList.remove('open');
+}
+
+async function loadOrders() {
+  const list = document.getElementById('orders-list');
+  list.innerHTML = `<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px;">Loading…</div>`;
+  try {
+    const res = await fetch('/api/orders', { headers: { 'x-admin-token': adminToken } });
+    if (res.status === 401) { showSave('error', '✕ Session expired — log in again'); clearAdminMode(); closeOrdersModal(); return; }
+    if (!res.ok) { list.innerHTML = `<div class="track-error">Failed to load orders.</div>`; return; }
+    const orders = await res.json();
+    if (!orders.length) { list.innerHTML = `<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:20px;">No orders yet. Create one above.</div>`; return; }
+    list.innerHTML = orders.map(o => {
+      const stageLabel = (ORDER_STAGES[o.stage] || ORDER_STAGES[0]).label;
+      return `<div class="order-row" onclick='editOrder(${JSON.stringify(o).replace(/'/g, "&#39;")})'>
+        <div>
+          <div class="order-row-code">${o.code}</div>
+          <div class="order-row-sub">${o.customer || '—'}${o.summary ? ' · ' + o.summary : ''}</div>
+        </div>
+        <div class="order-row-stage">${stageLabel}</div>
+      </div>`;
+    }).join('');
+  } catch {
+    list.innerHTML = `<div class="track-error">Connection error.</div>`;
+  }
+}
+
+function fillStageSelect() {
+  document.getElementById('order-stage').innerHTML = ORDER_STAGES.map((s, i) => `<option value="${i}">${i + 1}. ${s.label}</option>`).join('');
+}
+
+function newOrder() {
+  editingOrderId = null;
+  fillStageSelect();
+  document.getElementById('order-edit-title').textContent = 'NEW ORDER';
+  document.getElementById('order-delete-btn').style.display = 'none';
+  ['order-code','order-customer','order-summary','order-eta','order-notes','order-img'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('order-stage').value = '0';
+  document.getElementById('order-edit-modal').classList.add('open');
+}
+
+function editOrder(o) {
+  editingOrderId = o.id;
+  fillStageSelect();
+  document.getElementById('order-edit-title').textContent = 'EDIT ORDER';
+  document.getElementById('order-delete-btn').style.display = 'block';
+  document.getElementById('order-code').value     = o.code || '';
+  document.getElementById('order-customer').value = o.customer || '';
+  document.getElementById('order-summary').value  = o.summary || '';
+  document.getElementById('order-stage').value    = String(o.stage || 0);
+  document.getElementById('order-eta').value      = o.eta || '';
+  document.getElementById('order-notes').value    = o.notes || '';
+  document.getElementById('order-img').value      = o.img || '';
+  document.getElementById('order-edit-modal').classList.add('open');
+}
+
+function closeOrderEdit() {
+  document.getElementById('order-edit-modal').classList.remove('open');
+  editingOrderId = null;
+}
+
+async function saveOrder() {
+  const payload = {
+    code:     document.getElementById('order-code').value.trim(),
+    customer: document.getElementById('order-customer').value.trim(),
+    summary:  document.getElementById('order-summary').value.trim(),
+    stage:    parseInt(document.getElementById('order-stage').value, 10) || 0,
+    eta:      document.getElementById('order-eta').value.trim(),
+    notes:    document.getElementById('order-notes').value.trim(),
+    img:      document.getElementById('order-img').value.trim(),
+  };
+  if (!payload.code) { showSave('error', '✕ Shipping code required'); return; }
+  const isNew = editingOrderId === null;
+  try {
+    const res = await fetch(isNew ? '/api/orders' : `/api/orders/${editingOrderId}`, {
+      method: isNew ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+      body: JSON.stringify(payload),
+    });
+    if (res.status === 401) { showSave('error', '✕ Session expired — log in again'); clearAdminMode(); return; }
+    if (res.status === 409) { showSave('error', '✕ That code already exists'); return; }
+    if (!res.ok) { showSave('error', '✕ Save failed'); return; }
+    closeOrderEdit();
+    await loadOrders();
+    showSave('saved', '✓ Order saved');
+  } catch {
+    showSave('error', '✕ Connection error');
+  }
+}
+
+async function deleteOrder() {
+  if (editingOrderId === null) return;
+  if (!confirm('Delete this order? This cannot be undone.')) return;
+  try {
+    const res = await fetch(`/api/orders/${editingOrderId}`, { method: 'DELETE', headers: { 'x-admin-token': adminToken } });
+    if (res.status === 401) { showSave('error', '✕ Session expired — log in again'); clearAdminMode(); return; }
+    if (!res.ok) { showSave('error', '✕ Delete failed'); return; }
+    closeOrderEdit();
+    await loadOrders();
+    showSave('saved', '✓ Order deleted');
+  } catch {
+    showSave('error', '✕ Connection error');
   }
 }
 
