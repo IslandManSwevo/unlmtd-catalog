@@ -802,7 +802,7 @@ app.post('/api/conversations/:id/reply', requireAdmin, async (req, res) => {
 });
 
 // Image proxy — bypasses hotlink protection for known supplier domains
-const IMG_ALLOWED = /^https?:\/\/([a-z0-9-]+\.)?(yupoo\.com|qiqiyg\.com|alicdn\.com|dhgate\.com|aliexpress\.com)/i;
+const IMG_ALLOWED = /^https?:\/\/([a-z0-9-]+\.)?(yupoo\.com|qiqiyg\.com|alicdn\.com|dhgate\.com|aliexpress\.com|richeng86888\.ru)/i;
 
 app.get('/api/img', (req, res) => {
   const url = decodeURIComponent(req.query.url || '');

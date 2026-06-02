@@ -711,7 +711,7 @@ const ORDER_STAGES = [
 
 function proxyImgUrl(url) {
   if (!url) return url;
-  if (url.match(/yupoo\.com/i)) return '/api/img?url=' + encodeURIComponent(url);
+  if (url.match(/yupoo\.com|richeng86888\.ru/i)) return '/api/img?url=' + encodeURIComponent(url);
   return url;
 }
 
@@ -1273,20 +1273,23 @@ function buildBookmarklet() {
   const base = 'https://unlmtdwholesale.up.railway.app';
   const code = `javascript:(function(){
     var n='',imgs=[],d='',src=location.href;
-    var h=document.querySelector('h1,h2,.album-name,.product-name,.goods-name,.title');
-    n=h?h.innerText.trim():document.title.split(/[|\\-\\u2013\\u2014]/)[0].trim();
+    var h=document.querySelector('h1,h2,.album-name,.product-name,.goods-name,.goods_name,.pro-name,.item-name,.detail-title,.title');
+    if(h&&h.innerText.trim()){n=h.innerText.trim();}
+    else{n=document.title.split(/[|\\-\\u2013\\u2014_]/)[0].trim();}
+    if(!n){var f=document.querySelector('main a,article a,.content a');if(f)n=f.innerText.trim();}
     var seen={};
     var attrs=['data-origin','data-src','data-lazy','data-lazy-src','data-original','data-url','src'];
+    function absUrl(u){if(!u)return '';if(u.startsWith('http'))return u;if(u.startsWith('//'))return location.protocol+u;if(u.startsWith('/'))return location.origin+u;return '';}
     document.querySelectorAll('img').forEach(function(el){
       var u='';
-      for(var i=0;i<attrs.length;i++){var v=el.getAttribute(attrs[i])||'';if(v&&v.startsWith('http')){u=v;break;}}
+      for(var i=0;i<attrs.length;i++){var v=absUrl(el.getAttribute(attrs[i])||'');if(v){u=v;break;}}
       if(!u||seen[u]||u.match(/logo|icon|avatar|sprite|placeholder/i))return;
       var s=(el.naturalWidth||el.width||0)*(el.naturalHeight||el.height||0);
       if(s>0&&s<2000)return;
       seen[u]=1;imgs.push({u:u,s:s||1});
     });
     document.querySelectorAll('a[href]').forEach(function(el){
-      var u=el.href||'';
+      var u=absUrl(el.getAttribute('href')||'');
       if(u&&u.match(/\.(jpg|jpeg|png|webp|gif)/i)&&!seen[u]){seen[u]=1;imgs.push({u:u,s:1});}
     });
     var og=document.querySelector('meta[property="og:image"]');
