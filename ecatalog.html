@@ -1277,20 +1277,31 @@ function buildBookmarklet() {
     if(h&&h.innerText.trim()){n=h.innerText.trim();}
     else{n=document.title.split(/[|\\-\\u2013\\u2014_]/)[0].trim();}
     if(!n){var f=document.querySelector('main a,article a,.content a');if(f)n=f.innerText.trim();}
-    var seen={};
+    var seenUrl={},seenFile={};
     var attrs=['data-origin','data-src','data-lazy','data-lazy-src','data-original','data-url','src'];
     function absUrl(u){if(!u)return '';if(u.startsWith('http'))return u;if(u.startsWith('//'))return location.protocol+u;if(u.startsWith('/'))return location.origin+u;return '';}
+    function fname(u){return u.split('/').pop().split('?')[0].split('#')[0];}
+    function addImg(u,s){
+      if(!u||seenUrl[u])return;
+      var f=fname(u);
+      if(seenFile[f])return;
+      if(u.match(/logo|icon|avatar|sprite|placeholder/i))return;
+      seenUrl[u]=1;seenFile[f]=1;
+      imgs.push({u:u,s:s||1});
+    }
+    /* Pass 1: anchor hrefs — these are usually full-size */
+    document.querySelectorAll('a[href]').forEach(function(el){
+      var u=absUrl(el.getAttribute('href')||'');
+      if(u&&u.match(/\.(jpg|jpeg|png|webp|gif)/i))addImg(u,2);
+    });
+    /* Pass 2: img elements — skip if same filename already collected */
     document.querySelectorAll('img').forEach(function(el){
       var u='';
       for(var i=0;i<attrs.length;i++){var v=absUrl(el.getAttribute(attrs[i])||'');if(v){u=v;break;}}
-      if(!u||seen[u]||u.match(/logo|icon|avatar|sprite|placeholder/i))return;
+      if(!u)return;
       var s=(el.naturalWidth||el.width||0)*(el.naturalHeight||el.height||0);
       if(s>0&&s<2000)return;
-      seen[u]=1;imgs.push({u:u,s:s||1});
-    });
-    document.querySelectorAll('a[href]').forEach(function(el){
-      var u=absUrl(el.getAttribute('href')||'');
-      if(u&&u.match(/\.(jpg|jpeg|png|webp|gif)/i)&&!seen[u]){seen[u]=1;imgs.push({u:u,s:1});}
+      addImg(u,s||1);
     });
     var og=document.querySelector('meta[property="og:image"]');
     if(og&&og.content&&!seen[og.content]){imgs.unshift({u:og.content,s:999999});}
@@ -1372,6 +1383,21 @@ function applyQuickPrice() {
   document.getElementById('import-bulk').value  = (cost * (1 + mkB / 100)).toFixed(2);
 }
 
+// Returns true if text contains Chinese characters
+function hasChinese(t) { return /[一-鿿]/.test(t || ''); }
+
+// Free MyMemory translation — no API key needed
+async function autoTranslate(text) {
+  if (!text || !hasChinese(text)) return text;
+  try {
+    const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=zh-CN|en-GB`);
+    const j = await r.json();
+    const t = j.responseData?.translatedText || '';
+    // MyMemory sometimes returns the original on failure
+    return (t && t !== text) ? t : text;
+  } catch { return text; }
+}
+
 function openImportModal(data) {
   if (!document.body.classList.contains('admin-mode')) return;
   const catSel = document.getElementById('import-cat');
@@ -1388,9 +1414,12 @@ function openImportModal(data) {
     if ([...subSel.options].some(o => o.value === pick.sub)) subSel.value = pick.sub;
   }
 
-  document.getElementById('import-name').value  = data.n   || '';
-  document.getElementById('import-desc').value  = data.d   || '';
-  document.getElementById('import-src').value   = data.src || '';
+  const nameEl = document.getElementById('import-name');
+  const descEl = document.getElementById('import-desc');
+
+  nameEl.value = data.n   || '';
+  descEl.value = data.d   || '';
+  document.getElementById('import-src').value   = data.src   || '';
   document.getElementById('import-cost').value  = data.price || '';
   document.getElementById('import-price').value = '';
   document.getElementById('import-bulk').value  = '';
@@ -1401,6 +1430,26 @@ function openImportModal(data) {
   previewImportImg();
   document.getElementById('import-modal').classList.add('open');
   window.history.replaceState({}, '', '/');
+
+  // Auto-translate name + desc if Chinese detected (async, updates fields when done)
+  if (hasChinese(data.n) || hasChinese(data.d)) {
+    nameEl.style.opacity = '0.5';
+    descEl.style.opacity = '0.5';
+    Promise.all([autoTranslate(data.n), autoTranslate(data.d)]).then(([tn, td]) => {
+      nameEl.value = tn || data.n || '';
+      descEl.value = td || data.d || '';
+      nameEl.style.opacity = '';
+      descEl.style.opacity = '';
+      // Re-run category guess with translated text
+      const tGuess = guessCategory(tn, td);
+      if (tGuess && CATEGORIES.some(c => c.id === tGuess.catId)) {
+        catSel.value = tGuess.catId;
+        updateImportSubs();
+        const subSel = document.getElementById('import-sub');
+        if ([...subSel.options].some(o => o.value === tGuess.sub)) subSel.value = tGuess.sub;
+      }
+    });
+  }
 }
 
 function updateImportSubs() {
