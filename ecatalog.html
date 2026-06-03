@@ -1313,7 +1313,7 @@ function buildBookmarklet() {
       addImg(u,s||1);
     });
     var og=document.querySelector('meta[property="og:image"]');
-    if(og&&og.content&&!seen[og.content]){imgs.unshift({u:og.content,s:999999});}
+    if(og&&og.content&&!seenUrl[og.content]){imgs.unshift({u:toFullSize(og.content),s:999999});}
     imgs.sort(function(a,b){return b.s-a.s;});
     imgs=imgs.map(function(x){return x.u;});
     var dm=document.querySelector('meta[name="description"],meta[property="og:description"]');
