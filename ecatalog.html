@@ -1280,6 +1280,15 @@ function buildBookmarklet() {
     var seenUrl={},seenFile={};
     var attrs=['data-origin','data-src','data-lazy','data-lazy-src','data-original','data-url','src'];
     function absUrl(u){if(!u)return '';if(u.startsWith('http'))return u;if(u.startsWith('//'))return location.protocol+u;if(u.startsWith('/'))return location.origin+u;return '';}
+    function toFullSize(u){
+      u=u.replace(/\/upfiles\/thumb\/[^/]+\//,'/upfiles/');   /* richeng: /thumb/256_256_2/ */
+      u=u.replace(/\/thumb\/\d+[xX_]\d+\//,'/');              /* generic: /thumb/800x600/ */
+      u=u.replace(/\/thumbnails?\//,'/');
+      u=u.replace(/\/small\//,'/');
+      u=u.replace(/[?&](w|h|width|height|size|thumb)=\d+/gi,'');
+      u=u.replace(/_(thumb|small|mini|xs|sm)(\.[a-z]{3,4})$/i,'$2');
+      return u;
+    }
     function fname(u){return u.split('/').pop().split('?')[0].split('#')[0];}
     function addImg(u,s){
       if(!u||seenUrl[u])return;
@@ -1289,15 +1298,15 @@ function buildBookmarklet() {
       seenUrl[u]=1;seenFile[f]=1;
       imgs.push({u:u,s:s||1});
     }
-    /* Pass 1: anchor hrefs — these are usually full-size */
+    /* Pass 1: anchor hrefs — full-size direct image links */
     document.querySelectorAll('a[href]').forEach(function(el){
-      var u=absUrl(el.getAttribute('href')||'');
+      var u=toFullSize(absUrl(el.getAttribute('href')||''));
       if(u&&u.match(/\.(jpg|jpeg|png|webp|gif)/i))addImg(u,2);
     });
-    /* Pass 2: img elements — skip if same filename already collected */
+    /* Pass 2: img elements — normalize thumbnails to full-size first */
     document.querySelectorAll('img').forEach(function(el){
       var u='';
-      for(var i=0;i<attrs.length;i++){var v=absUrl(el.getAttribute(attrs[i])||'');if(v){u=v;break;}}
+      for(var i=0;i<attrs.length;i++){var v=absUrl(el.getAttribute(attrs[i])||'');if(v){u=toFullSize(v);break;}}
       if(!u)return;
       var s=(el.naturalWidth||el.width||0)*(el.naturalHeight||el.height||0);
       if(s>0&&s<2000)return;
