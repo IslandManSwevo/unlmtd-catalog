@@ -530,6 +530,9 @@
           <label class="field-label">Supplier Album / Gallery URL</label>
           <input class="field-input" id="bis-url" type="text" placeholder="https://xiaozhi99.x.yupoo.com/albums" onkeydown="if(event.key==='Enter')scrapeAlbum()">
         </div>
+        <div class="field-row" style="gap:10px;">
+          <div class="field-group" style="flex:0 0 180px;"><label class="field-label">Password (if locked)</label><input class="field-input" id="bis-pw" type="text" placeholder="Album password"></div>
+        </div>
         <div class="field-group">
           <label class="field-label">Default Category</label>
           <select class="field-input" id="bis-cat" style="cursor:pointer;" onchange="updateBisSubs()"></select>
@@ -1533,6 +1536,7 @@ function openBulkImportModal() {
   catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
   updateBisSubs();
   document.getElementById('bis-url').value = '';
+  document.getElementById('bis-pw').value = '';
   document.getElementById('bis-cost').value = '';
   document.getElementById('bis-error').style.display = 'none';
   document.getElementById('bis-step1').style.display = '';
@@ -1559,10 +1563,11 @@ async function scrapeAlbum() {
   document.getElementById('bis-loading').style.display = '';
   document.getElementById('bis-error').style.display = 'none';
   try {
+    const pw = document.getElementById('bis-pw').value.trim();
     const res = await fetch('/api/importer/scrape', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url, password: pw || undefined })
     });
     if (!res.ok) {
       const j = await res.json();

@@ -5,6 +5,22 @@ const fs        = require('fs');
 const https     = require('https');
 const http      = require('http');
 
+// ── PUPPETEER (headless browser for JS-rendered pages) ──
+let _puppeteer = null;
+async function getPuppeteer() {
+  if (_puppeteer) return _puppeteer;
+  try {
+    const puppeteer = require('puppeteer-extra');
+    const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+    puppeteer.use(StealthPlugin());
+    _puppeteer = puppeteer;
+    return puppeteer;
+  } catch(e) {
+    console.warn('Puppeteer unavailable:', e.message);
+    return null;
+  }
+}
+
 // ── AI PROVIDERS ──────────────────────────────────────────
 let _openai = null, _openrouter = null, _anthropic = null;
 
@@ -1081,70 +1097,131 @@ function fetchSupplierPage(url) {
   });
 }
 
-function stripThumb(url) {
-  return (url || '').replace(/\/thumb\/[^/?#]+\//g, '/');
-}
+// Browser-based Yupoo scraper — handles JS-rendered album pages
+async function scrapeYupooBrowser(url, password) {
+  const puppeteer = await getPuppeteer();
+  if (!puppeteer) throw new Error('Puppeteer not available');
 
-function scrapeYupoo(html, baseUrl) {
-  const products = [];
-  const seen = new Set();
-
-  // Strategy 1: album grid items — links containing album IDs with images
-  const linkRe = /<a[^>]*href="([^"]*(?:\/albums\/\d+|\/photos\/\d+)[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-  let match;
-  while ((match = linkRe.exec(html)) !== null) {
-    const href = match[1];
-    const inner = match[2];
-
-    // Extract image from src, data-src, data-origin
-    const imgRe = /<img[^>]*(?:data-src|data-origin|src)="([^"]*)"[^>]*>/i;
-    const imgMatch = inner.match(imgRe);
-    if (!imgMatch) continue;
-
-    let thumbUrl = stripThumb(imgMatch[1]);
-    if (!thumbUrl.match(/\.(jpg|jpeg|png|webp|gif)/i)) continue;
-    if (/logo|icon|avatar|sprite/i.test(thumbUrl)) continue;
-
-    const fname = thumbUrl.split('/').pop().split('?')[0];
-    if (seen.has(fname)) continue;
-    seen.add(fname);
-
-    // Name: alt text > title div text > inner text
-    let name = '';
-    const altM = inner.match(/alt="([^"]*)"/i);
-    if (altM && altM[1].trim().length > 1) name = altM[1].trim();
-    if (!name) {
-      const titleM = inner.match(/<div[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/div>/i) ||
-                      inner.match(/<span[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/span>/i);
-      if (titleM) name = titleM[1].trim();
-    }
-    if (!name) {
-      name = inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      if (name.length > 80) name = name.substring(0, 80);
-    }
-    if (!name || name.length < 2) name = fname.replace(/\.(jpg|jpeg|png|webp|gif)/i, '').replace(/[-_]/g, ' ');
-
-    const detailUrl = href.startsWith('http') ? href : (new URL(href, baseUrl)).href;
-    products.push({
-      name: name.replace(/&amp;/g, '&').replace(/&#?[a-z0-9]+;/gi, c => c === '&amp;' ? '&' : c === '&lt;' ? '<' : c === '&gt;' ? '>' : c),
-      thumbnail: thumbUrl,
-      detailUrl,
+  let browser = null;
+  try {
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-web-security',
+        '--window-size=1366,768',
+      ],
     });
-  }
 
-  // Fallback: any Yupoo CDN image not already captured
-  if (products.length === 0) {
-    const imgRe = /<img[^>]*(?:data-src|data-origin|src)="([^"]*photo\.yupoo\.com[^"]*)"[^>]*>/gi;
-    while ((match = imgRe.exec(html)) !== null) {
-      let url = stripThumb(match[1]);
-      const fname = url.split('/').pop().split('?')[0];
-      if (seen.has(fname) || /logo|icon|avatar|sprite/i.test(fname)) continue;
-      seen.add(fname);
-      products.push({ name: fname.replace(/\.(jpg|jpeg|png|webp|gif)/i, '').replace(/[-_]/g, ' '), thumbnail: url, detailUrl: baseUrl });
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1366, height: 768 });
+
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+
+    // Handle password-protected albums
+    if (password) {
+      await new Promise(r => setTimeout(r, 1500));
+      const locked = await page.evaluate(() => {
+        const body = document.body ? document.body.innerText : '';
+        return body.includes('Please Enter Password') || body.includes('Encrypted') || !!document.querySelector('input[type="password"]');
+      });
+      if (locked) {
+        // Fill in password and submit
+        await page.evaluate((pw) => {
+          const input = document.querySelector('input[type="password"]') || document.querySelector('input[type="text"][placeholder*="password" i]') || document.querySelector('input[placeholder*="Password"]');
+          if (input) {
+            input.value = pw;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            // Find and click submit button
+            const btn = document.querySelector('button[type="submit"]') || document.querySelector('button') || document.querySelector('input[type="submit"]');
+            // Look for a button that says confirm/submit
+            const allBtns = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+            let submitBtn = null;
+            allBtns.forEach(b => {
+              const t = (b.textContent || b.value || '').toLowerCase();
+              if (t.includes('confirm') || t.includes('submit') || t.includes('ok') || t.includes('login')) submitBtn = b;
+            });
+            if (submitBtn) submitBtn.click();
+            else if (btn) btn.click();
+          }
+        }, password);
+        await new Promise(r => setTimeout(r, 3000));
+        // Wait for album content to load
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      }
     }
-  }
 
-  return products;
+    // Wait a moment for lazy images to load
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Extract products from the rendered DOM
+    const products = await page.evaluate(() => {
+      const results = [];
+      const seen = new Set();
+
+      // Find all images in the page that look like product photos
+      const imgs = document.querySelectorAll('img');
+
+      imgs.forEach(img => {
+        // Try multiple src attributes (lazy loading)
+        const src = img.getAttribute('data-src') || img.getAttribute('data-origin') || img.src;
+        if (!src || !/\.(jpg|jpeg|png|webp)/i.test(src)) return;
+        if (/logo|icon|avatar|sprite|yupoo\.com\/(icons|website|imgs)\//i.test(src)) return;
+        if (src.startsWith('data:')) return;
+
+        // Strip thumbnail paths for full-size image
+        const cleanSrc = src.replace(/\/thumb\/[^/?#]+\//g, '/');
+        const fname = cleanSrc.split('/').pop().split('?')[0];
+        if (seen.has(fname)) return;
+        seen.add(fname);
+
+        // Name: alt text
+        let name = (img.alt || '').trim();
+
+        // Look for a parent link
+        let parent = img.parentElement;
+        let detailUrl = '';
+        while (parent && parent !== document.body) {
+          if (parent.tagName === 'A' && parent.href) {
+            detailUrl = parent.href;
+            break;
+          }
+          parent = parent.parentElement;
+        }
+
+        // Try to find name from nearby title/name elements
+        if (!name || name.length < 2) {
+          const container = img.closest('figure, .album__item, .image__item, [class*="image"], [class*="photo"]');
+          if (container) {
+            const titleEl = container.querySelector('[class*="title"], [class*="name"], figcaption');
+            if (titleEl) {
+              name = titleEl.textContent.trim();
+            }
+          }
+        }
+
+        if (!name || name.length < 2) {
+          name = fname.replace(/\.(jpg|jpeg|png|webp)/i, '').replace(/[-_]/g, ' ');
+        }
+
+        results.push({
+          name: name.substring(0, 120),
+          thumbnail: cleanSrc,
+          detailUrl: detailUrl || window.location.href,
+        });
+      });
+
+      return results;
+    });
+
+    return products;
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
 }
 
 function scrapeQiqiyg(html, baseUrl) {
@@ -1191,18 +1268,22 @@ function scrapeRicheng(html, baseUrl) {
 }
 
 app.post('/api/importer/scrape', requireAdmin, async (req, res) => {
-  const { url } = req.body || {};
+  const { url, password } = req.body || {};
   if (!url) return res.status(400).json({ error: 'Missing URL' });
   if (!/yupoo\.com|qiqiyg\.com|richeng86888\.ru/i.test(url)) {
     return res.status(400).json({ error: 'Unsupported supplier. Supported: Yupoo, qiqiyg, richeng86888.ru' });
   }
 
   try {
-    const html = await fetchSupplierPage(url);
     let products = [];
-    if (/yupoo\.com/i.test(url)) products = scrapeYupoo(html, url);
-    else if (/qiqiyg\.com/i.test(url)) products = scrapeQiqiyg(html, url);
-    else if (/richeng86888\.ru/i.test(url)) products = scrapeRicheng(html, url);
+    if (/yupoo\.com/i.test(url)) {
+      // Use headless browser for JS-rendered Yupoo pages
+      products = await scrapeYupooBrowser(url, password);
+    } else {
+      const html = await fetchSupplierPage(url);
+      if (/qiqiyg\.com/i.test(url)) products = scrapeQiqiyg(html, url);
+      else if (/richeng86888\.ru/i.test(url)) products = scrapeRicheng(html, url);
+    }
 
     // Filter out junk (very short names, likely non-products)
     products = products.filter(p => p.name && p.name.length >= 2 && p.thumbnail);
