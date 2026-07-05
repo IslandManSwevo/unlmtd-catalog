@@ -1104,8 +1104,9 @@ async function scrapeYupooBrowser(url, password) {
 
   let browser = null;
   try {
-    browser = await puppeteer.launch({
-      headless: 'new',
+    // Try @sparticuz/chromium first (serverless-friendly), fall back to puppeteer's bundled Chromium
+    let launchOpts = {
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -1113,8 +1114,20 @@ async function scrapeYupooBrowser(url, password) {
         '--disable-gpu',
         '--disable-web-security',
         '--window-size=1366,768',
+        '--single-process',
       ],
-    });
+    };
+
+    try {
+      const sparticuz = require('@sparticuz/chromium');
+      launchOpts.args = [...sparticuz.args, '--window-size=1366,768'];
+      launchOpts.executablePath = await sparticuz.executablePath();
+      launchOpts.headless = sparticuz.headless;
+    } catch (_) {
+      // @sparticuz/chromium not available, use puppeteer's bundled Chromium (default)
+    }
+
+    browser = await puppeteer.launch(launchOpts);
 
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
@@ -1291,7 +1304,14 @@ app.post('/api/importer/scrape', requireAdmin, async (req, res) => {
     return res.json({ products, count: products.length });
   } catch (err) {
     console.error('Importer scrape error:', err.message);
-    return res.status(500).json({ error: 'Failed to fetch page. The site may be blocking automated access.' });
+    const msg = err.message || String(err);
+    if (msg.includes('Puppeteer not available') || msg.includes('Failed to launch') || msg.includes('browser')) {
+      return res.status(500).json({ error: 'Browser engine unavailable. Puppeteer/Chromium may not be installed on this server. ' + msg });
+    }
+    if (msg.includes('timeout') || msg.includes('Timeout')) {
+      return res.status(500).json({ error: 'Request timed out. The site may be slow or blocking access.' });
+    }
+    return res.status(500).json({ error: msg });
   }
 });
 
