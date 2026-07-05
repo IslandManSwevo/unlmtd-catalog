@@ -1,0 +1,128 @@
+<!--
+  ecatalog.importer.html
+  Standalone importer snippet: bookmarklet, import modal, and JS helpers.
+  Drop relevant sections into `ecatalog.html` where appropriate.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>UNLMTD — Importer Snippet</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;background:#0c0c0c;color:#f4f0eb;padding:28px}
+  .btn{display:inline-block;padding:8px 12px;background:#c9a84c;color:#000;text-decoration:none;border-radius:4px}
+  .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center}
+  .modal-backdrop.open{display:flex}
+  .modal{background:#111;padding:18px;border-radius:8px;border:1px solid rgba(201,168,76,0.12);max-width:720px;width:100%}
+  .field-input{width:100%;padding:8px;margin-top:6px;border-radius:4px;background:#0b0b0b;color:#fff;border:1px solid rgba(255,255,255,0.06)}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+</style>
+</head>
+<body>
+<h2>Importer Snippet (merge into ecatalog.html)</h2>
+<p>Contains bookmarklet installer, import preview modal, and JS helper functions. Copy the HTML fragments and the <code>&lt;script&gt;</code> block into your main file where appropriate.</p>
+
+<!-- Bookmarklet installer (drop into admin area) -->
+<div style="margin:18px 0;padding:12px;background:#111;border:1px solid rgba(255,255,255,0.03);">
+  <div style="margin-bottom:8px;font-weight:700;color:#d7c189">Bookmarklet Installer</div>
+  <a id="bookmarklet-link" class="btn" href="#">📥 Add to UNLMTD (drag to bookmarks)</a>
+  <button onclick="openBookmarkletModal()" style="margin-left:12px;">Open Demo Modal</button>
+</div>
+
+<!-- Bookmarklet modal -->
+<div class="modal-backdrop" id="bookmarklet-modal">
+  <div class="modal">
+    <div class="modal-header"><strong>📥 Supplier Importer</strong><button onclick="closeBookmarkletModal()">✕</button></div>
+    <p>Drag the button to your bookmarks bar. When on a supplier product page, click the bookmark to open the import preview here.</p>
+    <div style="margin-top:10px;"><a id="bookmarklet-link-2" class="btn" href="#">📥 Add to UNLMTD</a></div>
+    <div style="margin-top:12px;text-align:right"><button onclick="closeBookmarkletModal()">Close</button></div>
+  </div>
+</div>
+
+<!-- Import preview modal -->
+<div class="modal-backdrop" id="import-modal">
+  <div class="modal">
+    <div class="modal-header"><strong>📥 Import Product</strong><button onclick="closeImportModal()">✕</button></div>
+    <div>
+      <div id="import-img-preview"></div>
+      <label>Item Name</label>
+      <input id="import-name" class="field-input" />
+      <label style="margin-top:8px">Description</label>
+      <input id="import-desc" class="field-input" />
+      <label style="margin-top:8px">Image URL</label>
+      <input id="import-img" class="field-input" oninput="previewImportImg()" />
+      <label style="margin-top:8px">Supplier Link (private)</label>
+      <input id="import-src" class="field-input" />
+    </div>
+    <div style="margin-top:12px;text-align:right">
+      <button onclick="closeImportModal()">Cancel</button>
+      <button onclick="saveImportedItem()" style="margin-left:8px">Add to Catalog</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Config: adjust base URL to your deployed domain when merging
+const IMPORT_BASE = location.origin || 'https://unlmtdwholesale.up.railway.app';
+
+// Build bookmarklet URL string (returns javascript:... URL)
+function buildBookmarklet(){
+  const base = IMPORT_BASE;
+  const code = `javascript:(function(){try{var n=document.querySelector('title')?document.querySelector('title').innerText:document.title;var im=(document.querySelector('img')?document.querySelector('img').src:'');var d=(document.querySelector('meta[name="description"]')?document.querySelector('meta[name="description"]').content:'');var src=location.href;window.open('${base}/?_import=1&n='+encodeURIComponent(n)+'&im='+encodeURIComponent(im)+'&d='+encodeURIComponent(d)+'&src='+encodeURIComponent(src),'_blank')}catch(e){alert('Import failed:'+e)}})();`.replace(/\s+/g,' ').trim();
+  return code;
+}
+
+function openBookmarkletModal(){
+  document.getElementById('bookmarklet-link-2').href = buildBookmarklet();
+  document.getElementById('bookmarklet-modal').classList.add('open');
+}
+function closeBookmarkletModal(){ document.getElementById('bookmarklet-modal').classList.remove('open'); }
+
+function openImportModal(data){
+  document.getElementById('import-name').value = data.name || '';
+  document.getElementById('import-desc').value = data.desc || '';
+  document.getElementById('import-img').value = data.img || '';
+  document.getElementById('import-src').value = data.src || '';
+  previewImportImg();
+  document.getElementById('import-modal').classList.add('open');
+}
+function closeImportModal(){ document.getElementById('import-modal').classList.remove('open'); }
+function previewImportImg(){ const v = document.getElementById('import-img').value; document.getElementById('import-img-preview').innerHTML = v?'<img src="'+v+'" style="max-width:100%">':''; }
+
+async function saveImportedItem(){
+  // This function assumes `adminToken` exists in sessionStorage when merged into main app.
+  const token = sessionStorage.getItem('unlmtd_admin_token') || null;
+  if(!token){
+    // store pending import and prompt admin login in the main app
+    const pending = { name: document.getElementById('import-name').value, desc: document.getElementById('import-desc').value, img: document.getElementById('import-img').value, src: document.getElementById('import-src').value };
+    sessionStorage.setItem('unlmtd_pending_import', JSON.stringify(pending));
+    closeImportModal();
+    // main app should show admin login modal when sees pending import
+    alert('Saved pending import — please unlock admin to finish.');
+    return;
+  }
+  // When merged, POST to /api/items with x-admin-token header
+  const payload = { category: 'uncategorized', sub: '', data: { name: document.getElementById('import-name').value, desc: document.getElementById('import-desc').value, img: document.getElementById('import-img').value, supplierLink: document.getElementById('import-src').value } };
+  try{
+    const res = await fetch('/api/items', { method: 'POST', headers: {'Content-Type':'application/json','x-admin-token': token}, body: JSON.stringify(payload) });
+    const j = await res.json();
+    if(j && j.id){ closeImportModal(); alert('Imported: ' + j.id); }
+    else alert('Import failed');
+  }catch(e){ alert('Import save failed'); }
+}
+
+// If page was opened with import params (bookmarklet flow), parse and open modal
+function checkImportParams(){
+  const params = new URLSearchParams(location.search);
+  if(params.has('_import')){
+    const data = { name: params.get('n')||'', img: params.get('im')||'', desc: params.get('d')||'', src: params.get('src')||'' };
+    openImportModal(data);
+  }
+}
+
+// When included in main app, call checkImportParams() on load to auto-open modal from bookmarklet
+if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', checkImportParams); } else { checkImportParams(); }
+</script>
+</body>
+</html>
