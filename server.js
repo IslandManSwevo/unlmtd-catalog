@@ -10,11 +10,8 @@ let _puppeteer = null;
 async function getPuppeteer() {
   if (_puppeteer) return _puppeteer;
   try {
-    const puppeteer = require('puppeteer-extra');
-    const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-    puppeteer.use(StealthPlugin());
-    _puppeteer = puppeteer;
-    return puppeteer;
+    _puppeteer = require('puppeteer');
+    return _puppeteer;
   } catch(e) {
     console.warn('Puppeteer unavailable:', e.message);
     return null;
@@ -1130,6 +1127,15 @@ async function scrapeYupooBrowser(url, password) {
     browser = await puppeteer.launch(launchOpts);
 
     const page = await browser.newPage();
+
+    // Manual stealth evasions (replaces puppeteer-extra-plugin-stealth)
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+      window.chrome = { runtime: {} };
+    });
+
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1366, height: 768 });
 

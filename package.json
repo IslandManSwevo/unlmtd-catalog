@@ -16,8 +16,6 @@
     "googleapis": "^140.0.0",
     "openai": "^4.52.0",
     "pg": "^8.11.3",
-    "puppeteer": "^25.3.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer": "^25.3.0"
   }
 }
