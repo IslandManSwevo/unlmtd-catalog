@@ -895,10 +895,9 @@ function renderProductCard(item, catId) {
     const esc = imgs[0].replace(/'/g, '%27');
     imgContent = `<img class="card-img" src="${proxyImgUrl(imgs[0])}" alt="${escHtml(item.name)}" style="cursor:zoom-in;" onclick="event.stopPropagation();openLightbox(['${esc}'],0)" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'card-img-placeholder\\'><div class=\\'placeholder-icon\\'>${item.icon||'🏷️'}</div><div class=\\'placeholder-text\\'>No image</div></div>')">`;
   } else {
-    const imgsJson = JSON.stringify(imgs).replace(/'/g, '%27');
-    const slides = imgs.map((src, i) => `<img class="carousel-slide" src="${proxyImgUrl(src)}" alt="${escHtml(item.name)}" style="cursor:zoom-in;" onclick="event.stopPropagation();openLightbox(JSON.parse(this.closest('.card-carousel').dataset.imgs),${i})" onerror="this.style.opacity='0.15'">`).join('');
-    const dots = imgs.map((_, i) => `<span class="carousel-dot${i === 0 ? ' active' : ''}"></span>`).join('');
-    imgContent = `<div class="card-carousel" data-idx="0" data-count="${imgs.length}" data-imgs='${imgsJson}' ontouchstart="carouselTouch(this,event,'start')" ontouchend="carouselTouch(this,event,'end')"><div class="carousel-track">${slides}</div><button class="carousel-prev" onclick="event.stopPropagation();carouselMove(this.parentElement,-1)">‹</button><button class="carousel-next" onclick="event.stopPropagation();carouselMove(this.parentElement,1)">›</button><div class="carousel-dots">${dots}</div><div class="photo-count">📷 ${imgs.length}</div></div>`;
+    const imgsJsonAttr = JSON.stringify(imgs).replace(/"/g, '&quot;');
+    const slides = imgs.map((src, i) => `<img class="carousel-slide" src="${proxyImgUrl(src)}" alt="${escHtml(item.name)}" style="cursor:zoom-in;" x-on:click.stop="openLightbox(imgs, ${i})" onerror="this.style.opacity='0.15'">`).join('');
+    imgContent = `<div class="card-carousel" x-data="{idx:0, imgs:${imgsJsonAttr}, _tx:0}" x-on:touchstart="_tx=$event.touches[0].clientX" x-on:touchend="if(Math.abs($event.changedTouches[0].clientX-_tx)>40){idx=($event.changedTouches[0].clientX<_tx?(idx+1)%imgs.length:(idx-1+imgs.length)%imgs.length)}"><div class="carousel-track" x-bind:style="'transform:translateX(-'+(idx*100)+'%)'">${slides}</div><button class="carousel-prev" x-on:click.stop="idx=(idx-1+imgs.length)%imgs.length">‹</button><button class="carousel-next" x-on:click.stop="idx=(idx+1)%imgs.length">›</button><div class="carousel-dots"><template x-for="(im,i) in imgs" x-bind:key="i"><span class="carousel-dot" x-bind:class="{active: i===idx}"></span></template></div><div class="photo-count">📷 ${imgs.length}</div></div>`;
   }
 
   const badgeRibbon = item.badge ? `<span class="card-badge">${escHtml(item.badge)}</span>` : '';
