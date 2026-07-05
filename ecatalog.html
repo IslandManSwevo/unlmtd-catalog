@@ -9,8 +9,11 @@
 <meta name="theme-color" content="#0c0c0c">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+<script defer src="https://unpkg.com/@alpinejs/focus@3.x.x/dist/cdn.min.js"></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  [x-cloak] { display: none !important; }
 
   :root {
     --black: #0c0c0c;
@@ -107,8 +110,7 @@
   .nav-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
 
   /* Desktop subcategory dropdown */
-  .nav-dropdown { position: fixed; background: #161616; border: 1px solid var(--border); border-top: 2px solid var(--gold); min-width: 190px; padding: 6px 0; z-index: 95; display: none; box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
-  .nav-dropdown.open { display: block; }
+  .nav-dropdown { position: fixed; background: #161616; border: 1px solid var(--border); border-top: 2px solid var(--gold); min-width: 190px; padding: 6px 0; z-index: 95; box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
   .nav-dd-item { padding: 9px 18px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-mid); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
   .nav-dd-item:hover { background: rgba(201,168,76,0.12); color: var(--gold); padding-left: 22px; }
   @media (hover: none) { .nav-dropdown { display: none !important; } }
@@ -117,10 +119,6 @@
   .main { max-width: 1200px; margin: 0 auto; padding: 40px 32px 80px; }
 
   /* ── LOADING STATE ── */
-  .catalog-loading {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 80px 32px; gap: 16px;
-  }
   .loading-spinner {
     width: 32px; height: 32px; border: 2px solid var(--border);
     border-top-color: var(--gold); border-radius: 50%;
@@ -128,6 +126,14 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); }
+
+  /* ── SKELETON LOADER ── */
+  @keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .skeleton-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px; }
+  .skeleton-card { background: var(--mid); display: flex; flex-direction: column; padding-bottom: 14px; }
+  .skeleton-img  { width: 100%; aspect-ratio: 3/4; background: #222; animation: skeleton-pulse 1.4s ease-in-out infinite; }
+  .skeleton-line { height: 10px; background: #222; margin: 12px 14px 0; animation: skeleton-pulse 1.4s ease-in-out infinite; }
+  .skeleton-line.short { width: 45%; }
 
   /* ── CATEGORY PAGE ── */
   .cat-page { display: none; }
@@ -246,8 +252,7 @@
   .sub-section-header span { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 2px; color: var(--text-dim); opacity: 0.6; }
 
   /* ── MODALS ── */
-  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
-  .modal-backdrop.open { display: flex; }
+  .modal-backdrop { display: flex; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
   .modal { background: #161616; border: 1px solid var(--border); width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
   .modal-header { padding: 24px 28px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
   .modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 2px; }
@@ -373,7 +378,10 @@
     hx-get="/catalog/search" hx-target="#grid-container" hx-swap="innerHTML"
     hx-trigger="keyup changed delay:200ms" autocomplete="off">
   <div class="topbar-right">
-    <span class="save-indicator" id="save-indicator"></span>
+    <span class="save-indicator" id="save-indicator" role="status" aria-live="polite"
+  x-data="{state:'', msg:'', visible:false}"
+  x-bind:class="{visible: visible, saving: state==='saving', saved: state==='saved', error: state==='error'}"
+  x-text="msg"></span>
     <button class="admin-btn" id="track-btn" onclick="openTrackModal()">📦 Track Order</button>
     <button class="admin-btn" id="orders-btn" onclick="openOrdersModal()" style="display:none;">🗂 Orders</button>
     <button class="admin-btn" id="customers-btn" onclick="openCustomersModal()" style="display:none;position:relative;">👥 Customers<span id="crm-dot" style="display:none;position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#e05555;"></span></button>
@@ -409,8 +417,12 @@
 </div>
 
 <!-- CATEGORY TABS -->
-<div class="nav-wrap" id="nav-tabs"></div>
-<div class="nav-dropdown" id="nav-dropdown" onmouseenter="clearTimeout(_ddTimer)" onmouseleave="scheduleHideDropdown()"></div>
+<div class="nav-wrap" id="nav-tabs" role="tablist" x-data
+  x-on:keydown.right.prevent.stop="$focus.wrap().next()"
+  x-on:keydown.left.prevent.stop="$focus.wrap().previous()"
+  x-on:keydown.home.prevent.stop="$focus.first()"
+  x-on:keydown.end.prevent.stop="$focus.last()"></div>
+<div class="nav-dropdown" id="nav-dropdown" role="menu" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.120ms onmouseenter="clearTimeout(_ddTimer)" onmouseleave="scheduleHideDropdown()"></div>
 
 <!-- MAIN -->
 <div class="main">
@@ -428,9 +440,15 @@
     </div>
   </div>
   <div id="grid-container" hx-get="/catalog/mens" hx-trigger="load">
-    <div class="catalog-loading">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">Loading catalog...</div>
+    <div class="skeleton-grid" aria-busy="true" aria-label="Loading catalog">
+      <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+      <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+      <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+      <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+      <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+      <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+      <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+      <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
     </div>
   </div>
 </div>
@@ -444,19 +462,32 @@
   </div>
 </div>
 
-<!-- LIGHTBOX -->
-<div id="lightbox" onclick="if(event.target===this)closeLightbox()"
-  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:600;align-items:center;justify-content:center;padding:20px;">
-  <button onclick="closeLightbox()" style="position:absolute;top:16px;right:20px;background:none;border:none;color:rgba(255,255,255,0.6);font-size:28px;cursor:pointer;line-height:1;padding:4px;">✕</button>
-  <button id="lb-prev" onclick="lightboxMove(-1)" style="position:absolute;left:12px;background:rgba(255,255,255,0.08);border:none;color:#fff;font-size:32px;padding:12px 16px;cursor:pointer;user-select:none;">‹</button>
-  <img id="lb-img" src="" style="max-width:calc(100vw - 120px);max-height:calc(100vh - 100px);object-fit:contain;display:block;user-select:none;">
-  <button id="lb-next" onclick="lightboxMove(1)" style="position:absolute;right:12px;background:rgba(255,255,255,0.08);border:none;color:#fff;font-size:32px;padding:12px 16px;cursor:pointer;user-select:none;">›</button>
-  <div id="lb-dots" style="position:absolute;bottom:16px;left:0;right:0;display:flex;justify-content:center;gap:6px;"></div>
+<!-- LIGHTBOX (Image Gallery) -->
+<div id="lightbox" x-data="{open:false, imgs:[], idx:0,
+    next(){ this.idx = (this.idx + 1) % this.imgs.length; },
+    prev(){ this.idx = (this.idx - 1 + this.imgs.length) % this.imgs.length; }
+  }"
+  x-show="open" x-cloak x-transition.opacity.duration.150ms
+  x-on:keydown.escape.window="open=false"
+  x-on:keydown.right.window="if(open) next()"
+  x-on:keydown.left.window="if(open) prev()"
+  x-on:click.self="open=false"
+  role="dialog" aria-modal="true"
+  style="position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:600;align-items:center;justify-content:center;padding:20px;">
+  <button x-on:click="open=false" style="position:absolute;top:16px;right:20px;background:none;border:none;color:rgba(255,255,255,0.6);font-size:28px;cursor:pointer;line-height:1;padding:4px;">✕</button>
+  <button x-show="imgs.length>1" x-on:click="prev()" style="position:absolute;left:12px;background:rgba(255,255,255,0.08);border:none;color:#fff;font-size:32px;padding:12px 16px;cursor:pointer;user-select:none;">‹</button>
+  <img x-bind:src="proxyImgUrl(imgs[idx])" style="max-width:calc(100vw - 120px);max-height:calc(100vh - 100px);object-fit:contain;display:block;user-select:none;">
+  <button x-show="imgs.length>1" x-on:click="next()" style="position:absolute;right:12px;background:rgba(255,255,255,0.08);border:none;color:#fff;font-size:32px;padding:12px 16px;cursor:pointer;user-select:none;">›</button>
+  <div style="position:absolute;bottom:16px;left:0;right:0;display:flex;justify-content:center;gap:6px;">
+    <template x-for="(img, i) in imgs" x-bind:key="i">
+      <span x-show="imgs.length>1" x-on:click="idx=i" x-bind:style="'width:8px;height:8px;border-radius:50%;cursor:pointer;transition:background 0.2s;background:'+(i===idx?'var(--gold)':'rgba(255,255,255,0.3)')"></span>
+    </template>
+  </div>
 </div>
 
 <!-- BOOKMARKLET INSTALL MODAL -->
-<div class="modal-backdrop" id="bookmarklet-modal">
-  <div class="modal" style="max-width:520px;">
+<div class="modal-backdrop" id="bookmarklet-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeBookmarkletModal()" x-on:click.self="closeBookmarkletModal()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:520px;" x-show="open" x-transition.duration.150ms>
     <div class="modal-header">
       <div class="modal-title">📥 SUPPLIER IMPORTER</div>
       <button class="modal-close" onclick="closeBookmarkletModal()">✕</button>
@@ -478,8 +509,8 @@
 </div>
 
 <!-- IMPORT PREVIEW MODAL -->
-<div class="modal-backdrop" id="import-modal">
-  <div class="modal" style="max-width:480px;">
+<div class="modal-backdrop" id="import-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeImportModal()" x-on:click.self="closeImportModal()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:480px;" x-show="open" x-transition.duration.150ms>
     <div class="modal-header">
       <div class="modal-title">📥 IMPORT PRODUCT</div>
       <button class="modal-close" onclick="closeImportModal()">✕</button>
@@ -517,8 +548,8 @@
 </div>
 
 <!-- BULK IMPORT MODAL -->
-<div class="modal-backdrop" id="bulkimport-modal">
-  <div class="modal" style="max-width:780px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;">
+<div class="modal-backdrop" id="bulkimport-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeBulkImportModal()" x-on:click.self="closeBulkImportModal()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:780px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;" x-show="open" x-transition.duration.150ms>
     <div class="modal-header" style="flex-shrink:0;">
       <div class="modal-title">📦 BULK IMPORT</div>
       <button class="modal-close" onclick="closeBulkImportModal()">✕</button>
@@ -567,15 +598,20 @@
           <button class="btn-secondary" onclick="closeBulkImportModal()">Cancel</button>
           <button class="btn-primary" style="flex:1;" id="bis-import-btn" onclick="bulkImport()">Import 0 Selected</button>
         </div>
-        <div id="bis-progress" style="display:none;margin-top:12px;font-size:12px;color:var(--text-dim);"></div>
+        <div id="bis-progress" style="display:none;margin-top:12px;" x-data="{done:0, failed:0, total:0, label:''}">
+          <div style="height:4px;background:rgba(255,255,255,0.08);overflow:hidden;">
+            <div role="progressbar" x-bind:style="'width:' + Math.round((done+failed)/(total||1)*100) + '%;height:100%;background:var(--gold);transition:width 0.2s;'"></div>
+          </div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:6px;" x-text="label"></div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <!-- TRACK ORDER MODAL (customer) -->
-<div class="modal-backdrop" id="track-modal">
-  <div class="modal" style="max-width:460px;">
+<div class="modal-backdrop" id="track-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeTrackModal()" x-on:click.self="closeTrackModal()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:460px;" x-show="open" x-transition.duration.150ms>
     <div class="modal-header">
       <div class="modal-title">📦 TRACK YOUR ORDER</div>
       <button class="modal-close" onclick="closeTrackModal()">✕</button>
@@ -592,8 +628,8 @@
 </div>
 
 <!-- ORDERS MANAGER MODAL (admin) -->
-<div class="modal-backdrop" id="orders-modal">
-  <div class="modal" style="max-width:640px;">
+<div class="modal-backdrop" id="orders-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeOrdersModal()" x-on:click.self="closeOrdersModal()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:640px;" x-show="open" x-transition.duration.150ms>
     <div class="modal-header">
       <div class="modal-title">🗂 ORDERS</div>
       <button class="modal-close" onclick="closeOrdersModal()">✕</button>
@@ -606,8 +642,8 @@
 </div>
 
 <!-- ORDER EDIT MODAL (admin) -->
-<div class="modal-backdrop" id="order-edit-modal">
-  <div class="modal" style="max-width:460px;">
+<div class="modal-backdrop" id="order-edit-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeOrderEdit()" x-on:click.self="closeOrderEdit()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:460px;" x-show="open" x-transition.duration.150ms>
     <div class="modal-header">
       <div class="modal-title" id="order-edit-title">EDIT ORDER</div>
       <button class="modal-close" onclick="closeOrderEdit()">✕</button>
@@ -630,8 +666,8 @@
 </div>
 
 <!-- CUSTOMERS / CRM MODAL (admin) -->
-<div class="modal-backdrop" id="customers-modal">
-  <div class="modal" style="max-width:700px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;">
+<div class="modal-backdrop" id="customers-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeCustomersModal()" x-on:click.self="closeCustomersModal()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:700px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;" x-show="open" x-transition.duration.150ms>
     <div class="modal-header" style="flex-shrink:0;">
       <div class="modal-title">👥 CUSTOMERS</div>
       <button class="modal-close" onclick="closeCustomersModal()">✕</button>
@@ -648,8 +684,8 @@
 </div>
 
 <!-- ADMIN LOGIN MODAL -->
-<div class="modal-backdrop" id="admin-modal">
-  <div class="modal" style="max-width:360px;">
+<div class="modal-backdrop" id="admin-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeAdminModal()" x-on:click.self="closeAdminModal()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:360px;" x-show="open" x-transition.duration.150ms>
     <div class="modal-header">
       <div class="modal-title">ADMIN LOGIN</div>
       <button class="modal-close" onclick="closeAdminModal()">✕</button>
@@ -671,8 +707,8 @@
 </div>
 
 <!-- EDIT ITEM MODAL -->
-<div class="modal-backdrop" id="modal">
-  <div class="modal">
+<div class="modal-backdrop" id="modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeModal()" x-on:click.self="closeModal()" role="dialog" aria-modal="true">
+  <div class="modal" x-show="open" x-transition.duration.150ms>
     <div class="modal-header">
       <div class="modal-title" id="modal-title">EDIT ITEM</div>
       <button class="modal-close" onclick="closeModal()">✕</button>
@@ -784,15 +820,24 @@ let editingCat    = null;
 let editingItemId = null;
 let adminToken    = sessionStorage.getItem('unlmtd_admin_token') || null;
 
+// ── MODAL / DROPDOWN HELPERS (Alpine-driven) ─────────────
+function setModalOpen(id, val) {
+  const el = document.getElementById(id);
+  if (el && window.Alpine) Alpine.$data(el).open = val;
+}
+
 // ── SAVE INDICATOR ───────────────────────────────────────
 let saveTimer = null;
 function showSave(state, msg) {
   const el = document.getElementById('save-indicator');
-  el.className = 'save-indicator visible ' + state;
-  el.textContent = msg;
+  if (!el || !window.Alpine) return;
+  const data = Alpine.$data(el);
+  data.state   = state;
+  data.msg     = msg;
+  data.visible = true;
   clearTimeout(saveTimer);
   if (state === 'saved' || state === 'error') {
-    saveTimer = setTimeout(() => { el.classList.remove('visible'); }, 3000);
+    saveTimer = setTimeout(() => { data.visible = false; }, 3000);
   }
 }
 
@@ -858,7 +903,7 @@ function toggleAdminPanel() {
     return;
   }
   // show login modal when not authenticated
-  document.getElementById('admin-modal').classList.add('open');
+  setModalOpen('admin-modal', true);
   setTimeout(() => document.getElementById('admin-pw-input').focus(), 100);
 }
 
@@ -889,7 +934,7 @@ async function submitAdminLogin() {
 }
 
 function closeAdminModal() {
-  document.getElementById('admin-modal').classList.remove('open');
+  setModalOpen('admin-modal', false);
   document.getElementById('admin-pw-input').value = '';
   document.getElementById('admin-login-error').textContent = '';
 }
@@ -910,9 +955,7 @@ document.body.addEventListener('htmx:beforeRequest', function(evt) {
   const catMatch = url.match(/\/catalog\/([a-z]+)/);
   if (catMatch) {
     activeCat = catMatch[1];
-    document.querySelectorAll('.nav-tab').forEach(t => {
-      t.classList.toggle('active', t.dataset.cat === activeCat);
-    });
+    syncActiveTab(activeCat);
   }
 });
 
@@ -969,11 +1012,21 @@ function buildTabs() {
   const nav = document.getElementById('nav-tabs');
   nav.innerHTML = CATEGORIES.map(c =>
     `<div class="nav-tab ${c.id === activeCat ? 'active' : ''}" data-cat="${c.id}"
+      role="tab" aria-selected="${c.id === activeCat}" tabindex="${c.id === activeCat ? '0' : '-1'}"
       hx-get="/catalog/${c.id}" hx-target="#grid-container" hx-swap="innerHTML">${c.icon} ${c.label}</div>`
   ).join('');
   nav.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('mouseenter', () => showNavDropdown(tab, tab.dataset.cat));
     tab.addEventListener('mouseleave', scheduleHideDropdown);
+  });
+}
+
+function syncActiveTab(catId) {
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    const active = t.dataset.cat === catId;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', active ? 'true' : 'false');
+    t.setAttribute('tabindex', active ? '0' : '-1');
   });
 }
 
@@ -983,22 +1036,22 @@ function showNavDropdown(tab, catId) {
   if (!cat) return;
   const dd = document.getElementById('nav-dropdown');
   dd.innerHTML = cat.subs.map(s =>
-    `<div class="nav-dd-item" onclick="jumpToSub('${catId}', '${s.replace(/'/g, "\\'")}')">${s}</div>`
+    `<div class="nav-dd-item" role="menuitem" onclick="jumpToSub('${catId}', '${s.replace(/'/g, "\\'")}')">${s}</div>`
   ).join('');
   const r = tab.getBoundingClientRect();
   dd.style.left = Math.min(r.left, window.innerWidth - 200) + 'px';
   dd.style.top  = r.bottom + 'px';
-  dd.classList.add('open');
+  setModalOpen('nav-dropdown', true);
   clearTimeout(_ddTimer);
 }
 
 function scheduleHideDropdown() {
-  _ddTimer = setTimeout(() => document.getElementById('nav-dropdown').classList.remove('open'), 180);
+  _ddTimer = setTimeout(() => setModalOpen('nav-dropdown', false), 180);
 }
 
 function jumpToSub(catId, sub) {
-  document.getElementById('nav-dropdown').classList.remove('open');
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.cat === catId));
+  setModalOpen('nav-dropdown', false);
+  syncActiveTab(catId);
   activeCat = catId;
   htmx.ajax('GET', `/catalog/${catId}?sub=${encodeURIComponent(sub)}`, '#grid-container');
 }
@@ -1020,7 +1073,7 @@ function updateTotalCount() {
 
 // ── NAVIGATION ────────────────────────────────────────────
 function switchCat(catId) {
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.cat === catId));
+  syncActiveTab(catId);
   activeCat = catId;
   htmx.ajax('GET', '/catalog/' + catId, '#grid-container');
 }
@@ -1097,11 +1150,11 @@ function openModal(catId, itemId, defaultSub) {
   }
 
   togglePriceField();
-  document.getElementById('modal').classList.add('open');
+  setModalOpen('modal', true);
 }
 
 function closeModal() {
-  document.getElementById('modal').classList.remove('open');
+  setModalOpen('modal', false);
   editingCat = null; editingItemId = null;
 }
 
@@ -1177,15 +1230,6 @@ function deleteItem() {
   })();
 }
 
-// Close modals on backdrop click
-document.getElementById('modal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
-document.getElementById('admin-modal').addEventListener('click', function(e) { if (e.target === this) closeAdminModal(); });
-document.getElementById('bookmarklet-modal').addEventListener('click', function(e) { if (e.target === this) closeBookmarkletModal(); });
-document.getElementById('import-modal').addEventListener('click', function(e) { if (e.target === this) closeImportModal(); });
-document.getElementById('track-modal').addEventListener('click', function(e) { if (e.target === this) closeTrackModal(); });
-document.getElementById('orders-modal').addEventListener('click', function(e) { if (e.target === this) closeOrdersModal(); });
-document.getElementById('order-edit-modal').addEventListener('click', function(e) { if (e.target === this) closeOrderEdit(); });
-
 // ── BOOKMARKLET ───────────────────────────────────────────
 function buildBookmarklet() {
   const base = 'https://unlmtdwholesale.up.railway.app';
@@ -1236,11 +1280,11 @@ function buildBookmarklet() {
 
 function openBookmarkletModal() {
   document.getElementById('bookmarklet-link').href = buildBookmarklet();
-  document.getElementById('bookmarklet-modal').classList.add('open');
+  setModalOpen('bookmarklet-modal', true);
 }
 
 function closeBookmarkletModal() {
-  document.getElementById('bookmarklet-modal').classList.remove('open');
+  setModalOpen('bookmarklet-modal', false);
 }
 
 // ── IMPORT MODAL ──────────────────────────────────────────
@@ -1345,7 +1389,7 @@ function openImportModal(data) {
   const importImgs = data.imgs?.length ? data.imgs : (data.im ? [data.im] : []);
   if (importImgs.length) importImgs.forEach(u => addImportImgField(u)); else addImportImgField('');
   previewImportImg();
-  document.getElementById('import-modal').classList.add('open');
+  setModalOpen('import-modal', true);
   window.history.replaceState({}, '', '/');
 
   // Auto-translate name + desc if Chinese detected (async, updates fields when done)
@@ -1383,7 +1427,7 @@ function previewImportImg() {
 }
 
 function closeImportModal() {
-  document.getElementById('import-modal').classList.remove('open');
+  setModalOpen('import-modal', false);
   sessionStorage.removeItem('pending_import');
 }
 
@@ -1423,71 +1467,24 @@ async function saveImportedItem() {
   }
 }
 
-// ── LIGHTBOX ─────────────────────────────────────────────
-let _lbImgs = [], _lbIdx = 0;
-
+// ── LIGHTBOX (Image Gallery, Alpine-driven) ──────────────
 function openLightbox(imgs, idx) {
-  _lbImgs = imgs;
-  _lbIdx  = idx;
-  _renderLightbox();
-  const lb = document.getElementById('lightbox');
-  lb.style.display = 'flex';
-}
-
-function _renderLightbox() {
-  document.getElementById('lb-img').src = proxyImgUrl(_lbImgs[_lbIdx]);
-  const multi = _lbImgs.length > 1;
-  document.getElementById('lb-prev').style.display = multi ? 'block' : 'none';
-  document.getElementById('lb-next').style.display = multi ? 'block' : 'none';
-  document.getElementById('lb-dots').innerHTML = multi
-    ? _lbImgs.map((_, i) => `<span onclick="lightboxGo(${i})" style="width:8px;height:8px;border-radius:50%;cursor:pointer;background:${i===_lbIdx?'var(--gold)':'rgba(255,255,255,0.3)'};transition:background 0.2s;"></span>`).join('')
-    : '';
-}
-
-function lightboxMove(dir) {
-  _lbIdx = (_lbIdx + dir + _lbImgs.length) % _lbImgs.length;
-  _renderLightbox();
-}
-
-function lightboxGo(i) { _lbIdx = i; _renderLightbox(); }
-
-function closeLightbox() {
-  document.getElementById('lightbox').style.display = 'none';
-  document.getElementById('lb-img').src = '';
-  _lbImgs = []; _lbIdx = 0;
+  const el = document.getElementById('lightbox');
+  if (!el || !window.Alpine) return;
+  const data = Alpine.$data(el);
+  data.imgs = imgs;
+  data.idx  = idx;
+  data.open = true;
 }
 
 let _lbTouchX = 0;
-document.addEventListener('keydown', e => {
-  if (document.getElementById('lightbox').style.display !== 'flex') return;
-  if (e.key === 'Escape')      closeLightbox();
-  if (e.key === 'ArrowRight')  lightboxMove(1);
-  if (e.key === 'ArrowLeft')   lightboxMove(-1);
-});
 document.getElementById('lightbox').addEventListener('touchstart', e => { _lbTouchX = e.touches[0].clientX; });
 document.getElementById('lightbox').addEventListener('touchend',   e => {
   const diff = _lbTouchX - e.changedTouches[0].clientX;
-  if (Math.abs(diff) > 40) lightboxMove(diff > 0 ? 1 : -1);
+  if (Math.abs(diff) < 40) return;
+  const data = Alpine.$data(document.getElementById('lightbox'));
+  if (diff > 0) data.next(); else data.prev();
 });
-
-// ── CAROUSEL ─────────────────────────────────────────────
-function carouselMove(el, dir) {
-  const count = parseInt(el.dataset.count);
-  const idx   = (parseInt(el.dataset.idx) + dir + count) % count;
-  el.dataset.idx = idx;
-  el.querySelector('.carousel-track').style.transform = `translateX(-${idx * 100}%)`;
-  el.querySelectorAll('.carousel-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
-}
-
-let _carouselTouchX = 0;
-function carouselTouch(el, e, phase) {
-  if (phase === 'start') {
-    _carouselTouchX = e.touches[0].clientX;
-  } else {
-    const diff = _carouselTouchX - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 40) carouselMove(el, diff > 0 ? 1 : -1);
-  }
-}
 
 // ── IMAGE FIELD HELPERS ───────────────────────────────────
 function addEditImgField(url) {
@@ -1543,12 +1540,12 @@ function openBulkImportModal() {
   document.getElementById('bis-step2').style.display = 'none';
   document.getElementById('bis-loading').style.display = 'none';
   _bisProducts = [];
-  document.getElementById('bulkimport-modal').classList.add('open');
+  setModalOpen('bulkimport-modal', true);
   setTimeout(() => document.getElementById('bis-url').focus(), 100);
 }
 
 function closeBulkImportModal() {
-  document.getElementById('bulkimport-modal').classList.remove('open');
+  setModalOpen('bulkimport-modal', false);
   _bisProducts = [];
 }
 
@@ -1640,8 +1637,10 @@ async function bulkImport() {
   const cost = parseFloat(document.getElementById('bis-cost').value) || 0;
   const mkR = parseFloat(document.getElementById('bis-mk-retail').value) || 50;
   const mkB = parseFloat(document.getElementById('bis-mk-bulk').value) || 30;
-  const progress = document.getElementById('bis-progress');
-  progress.style.display = '';
+  const progressEl = document.getElementById('bis-progress');
+  progressEl.style.display = '';
+  const progress = Alpine.$data(progressEl);
+  progress.total = checked.length;
 
   let done = 0, failed = 0;
   for (const cb of checked) {
@@ -1675,11 +1674,13 @@ async function bulkImport() {
         done++;
       } else { failed++; }
     } catch { failed++; }
-    progress.textContent = `Importing... ${done + failed}/${checked.length} (${done} ok, ${failed} failed)`;
+    progress.done = done;
+    progress.failed = failed;
+    progress.label = `Importing... ${done + failed}/${checked.length} (${done} ok, ${failed} failed)`;
     await new Promise(r => setTimeout(r, 100));
   }
 
-  progress.textContent = `✓ Done! ${done} imported` + (failed ? `, ${failed} failed` : '');
+  progress.label = `✓ Done! ${done} imported` + (failed ? `, ${failed} failed` : '');
   updateTotalCount();
   refreshPage(catId);
   switchCat(catId);
@@ -1699,7 +1700,7 @@ function checkImportParams() {
   } else {
     sessionStorage.setItem('pending_import', JSON.stringify(data));
     window.history.replaceState({}, '', '/');
-    document.getElementById('admin-modal').classList.add('open');
+    setModalOpen('admin-modal', true);
     setTimeout(() => document.getElementById('admin-pw-input').focus(), 100);
   }
 }
@@ -1708,11 +1709,11 @@ function checkImportParams() {
 function openTrackModal() {
   document.getElementById('track-result').innerHTML = '';
   document.getElementById('track-code-input').value = '';
-  document.getElementById('track-modal').classList.add('open');
+  setModalOpen('track-modal', true);
   setTimeout(() => document.getElementById('track-code-input').focus(), 100);
 }
 function closeTrackModal() {
-  document.getElementById('track-modal').classList.remove('open');
+  setModalOpen('track-modal', false);
 }
 
 async function submitTrack() {
@@ -1763,11 +1764,11 @@ function renderTrackResult(o) {
 let editingOrderId = null;
 
 async function openOrdersModal() {
-  document.getElementById('orders-modal').classList.add('open');
+  setModalOpen('orders-modal', true);
   await loadOrders();
 }
 function closeOrdersModal() {
-  document.getElementById('orders-modal').classList.remove('open');
+  setModalOpen('orders-modal', false);
 }
 
 async function loadOrders() {
@@ -1805,7 +1806,7 @@ function newOrder() {
   document.getElementById('order-delete-btn').style.display = 'none';
   ['order-code','order-customer','order-summary','order-eta','order-notes','order-img'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('order-stage').value = '0';
-  document.getElementById('order-edit-modal').classList.add('open');
+  setModalOpen('order-edit-modal', true);
 }
 
 function editOrder(o) {
@@ -1820,11 +1821,11 @@ function editOrder(o) {
   document.getElementById('order-eta').value      = o.eta || '';
   document.getElementById('order-notes').value    = o.notes || '';
   document.getElementById('order-img').value      = o.img || '';
-  document.getElementById('order-edit-modal').classList.add('open');
+  setModalOpen('order-edit-modal', true);
 }
 
 function closeOrderEdit() {
-  document.getElementById('order-edit-modal').classList.remove('open');
+  setModalOpen('order-edit-modal', false);
   editingOrderId = null;
 }
 
@@ -1878,12 +1879,12 @@ let _crmActiveId  = null;
 let _crmPollTimer = null;
 
 function openCustomersModal() {
-  document.getElementById('customers-modal').classList.add('open');
+  setModalOpen('customers-modal', true);
   loadCustomers();
   scheduleCrmPoll();
 }
 function closeCustomersModal() {
-  document.getElementById('customers-modal').classList.remove('open');
+  setModalOpen('customers-modal', false);
   clearTimeout(_crmPollTimer);
 }
 
@@ -2026,95 +2027,10 @@ async function sendCrmReply(convId) {
   } else { showSave('error', '✕ Send failed'); }
 }
 
-document.getElementById('customers-modal').addEventListener('click', function(e) { if (e.target === this) closeCustomersModal(); });
-
 // Start polling for needs-human notifications when in admin mode
 setInterval(() => { if (adminToken) checkNeedsHuman(); }, 60000);
 
 init();
 </script>
-<!-- IMPORTER SNIPPET: inserted from ecatalog.importer.html (bookmarklet + import modal + helpers) -->
-<!-- BEGIN IMPORTER -->
-<div style="display:none">
-  <!-- bookmarklet & modals are injected by the script below when in admin mode -->
-</div>
-<script>
-// Importer merged from ecatalog.importer.html
-const IMPORT_BASE = location.origin || 'https://unlmtdwholesale.up.railway.app';
-function buildBookmarklet(){
-  const base = IMPORT_BASE;
-  const code = `javascript:(function(){try{var n=document.querySelector('title')?document.querySelector('title').innerText:document.title;var im=(document.querySelector('img')?document.querySelector('img').src:'');var d=(document.querySelector('meta[name="description"]')?document.querySelector('meta[name="description"]').content:'');var src=location.href;window.open('${base}/?_import=1&n='+encodeURIComponent(n)+'&im='+encodeURIComponent(im)+'&d='+encodeURIComponent(d)+'&src='+encodeURIComponent(src),'_blank')}catch(e){alert('Import failed:'+e)}})();`.replace(/\s+/g,' ').trim();
-  return code;
-}
-function openBookmarkletModal(){
-  // create modal if not present
-  if(!document.getElementById('bookmarklet-modal')){
-    const html = `
-    <div class="modal-backdrop open" id="bookmarklet-modal">
-      <div class="modal">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><strong>📥 Supplier Importer</strong><button onclick="document.getElementById('bookmarklet-modal').remove()">✕</button></div>
-        <p>Drag the button to your bookmarks bar. When on a supplier product page, click the bookmark to open the import preview here.</p>
-        <div style="margin-top:10px;"><a id="bookmarklet-link-2" class="btn" href="#">📥 Add to UNLMTD</a></div>
-        <div style="margin-top:12px;text-align:right"><button onclick="document.getElementById('bookmarklet-modal').remove()">Close</button></div>
-      </div>
-    </div>`;
-    document.body.insertAdjacentHTML('beforeend', html);
-    document.getElementById('bookmarklet-link-2').href = buildBookmarklet();
-  }
-}
-function openImportModal(data){
-  if(!document.getElementById('import-modal')){
-    const html = `
-    <div class="modal-backdrop open" id="import-modal">
-      <div class="modal">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><strong>📥 Import Product</strong><button onclick="document.getElementById('import-modal').remove()">✕</button></div>
-        <div>
-          <div id="import-img-preview"></div>
-          <label>Item Name</label>
-          <input id="import-name" class="field-input" />
-          <label style="margin-top:8px">Description</label>
-          <input id="import-desc" class="field-input" />
-          <label style="margin-top:8px">Image URL</label>
-          <input id="import-img" class="field-input" oninput="previewImportImg()" />
-          <label style="margin-top:8px">Supplier Link (private)</label>
-          <input id="import-src" class="field-input" />
-        </div>
-        <div style="margin-top:12px;text-align:right">
-          <button onclick="document.getElementById('import-modal').remove()">Cancel</button>
-          <button onclick="saveImportedItem()" style="margin-left:8px">Add to Catalog</button>
-        </div>
-      </div>
-    </div>`;
-    document.body.insertAdjacentHTML('beforeend', html);
-  }
-  document.getElementById('import-name').value = data.name || '';
-  document.getElementById('import-desc').value = data.desc || '';
-  document.getElementById('import-img').value = data.img || '';
-  document.getElementById('import-src').value = data.src || '';
-  previewImportImg();
-}
-function previewImportImg(){ const v = document.getElementById('import-img').value; const el = document.getElementById('import-img-preview'); if(el) el.innerHTML = v?`<img src="${v}" style="max-width:100%">`:''; }
-async function saveImportedItem(){
-  const token = sessionStorage.getItem('unlmtd_admin_token') || null;
-  if(!token){
-    const pending = { name: document.getElementById('import-name').value, desc: document.getElementById('import-desc').value, img: document.getElementById('import-img').value, src: document.getElementById('import-src').value };
-    sessionStorage.setItem('unlmtd_pending_import', JSON.stringify(pending));
-    const modal = document.getElementById('import-modal'); if(modal) modal.remove();
-    // trigger admin modal in page
-    const adminModal = document.getElementById('admin-modal'); if(adminModal) adminModal.classList.add('open');
-    return;
-  }
-  const payload = { category: 'uncategorized', sub: '', data: { name: document.getElementById('import-name').value, desc: document.getElementById('import-desc').value, img: document.getElementById('import-img').value, supplierLink: document.getElementById('import-src').value } };
-  try{
-    const res = await fetch('/api/items', { method: 'POST', headers: {'Content-Type':'application/json','x-admin-token': token}, body: JSON.stringify(payload) });
-    const j = await res.json();
-    if(j && j.id){ const modal = document.getElementById('import-modal'); if(modal) modal.remove(); await loadCatalog(); updateTotalCount(); htmx.ajax('GET', '/catalog/' + (window.activeCat || 'mens'), '#grid-container'); }
-    else alert('Import failed');
-  }catch(e){ alert('Import save failed'); }
-}
-function checkImportParams(){ const params = new URLSearchParams(location.search); if(params.has('_import')){ const data = { name: params.get('n')||'', img: params.get('im')||'', desc: params.get('d')||'', src: params.get('src')||'' }; openImportModal(data); } }
-if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', checkImportParams); } else { checkImportParams(); }
-</script>
-<!-- END IMPORTER -->
 </body>
 </html>
