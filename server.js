@@ -840,6 +840,380 @@ app.post('/api/auth', (req, res) => {
   }
 });
 
+// ── CATALOG CONFIG (shared) ──────────────────────────────
+const CATEGORIES = [
+  { id: 'mens',    label: "Menswear",         icon: "👔", subs: ["T-Shirts", "Shirts & Polos", "Hoodies & Sweats", "Jackets & Outerwear", "Suits & Formal"] },
+  { id: 'womens',  label: "Womenswear",       icon: "👗", subs: ["Tops & Blouses", "Dresses", "Sets & Co-ords", "Skirts", "Activewear"] },
+  { id: 'jeans',   label: "Bottoms",          icon: "👖", subs: ["Jeans", "Cargo & Utility", "Shorts", "Joggers & Sweats", "Dress Pants"] },
+  { id: 'shoes',   label: "Footwear",         icon: "👟", subs: ["Sneakers", "Boots", "Dress Shoes", "Heels", "Loafers & Casual"] },
+  { id: 'slides',  label: "Slides & Sandals", icon: "🩴", subs: ["Foam Slides", "Strap Sandals", "Platform", "House Slippers", "Beach Sandals"] },
+  { id: 'bags',    label: "Bags",             icon: "👜", subs: ["Crossbody", "Backpacks", "Totes & Shoppers", "Wallets & Belts", "Hats & Caps"] },
+  { id: 'watches', label: "Watches",          icon: "⌚", subs: ["Everyday", "Sport & Fitness", "Dress & Formal", "Smart & Digital", "Women's Watches"] },
+  { id: 'eyewear', label: "Eyewear",          icon: "🕶️", subs: ["Sunglasses", "Fashion Frames", "Sport Shades", "Reading Glasses", "Blue Light"] },
+];
+const WA_NUMBER = '12427270271';
+
+// ── HTMX CATALOG RENDERING ─────────────────────────────────
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function proxyImgUrl(url) {
+  if (!url) return url;
+  if (url.match(/yupoo\.com|richeng86888\.ru/i)) return '/api/img?url=' + encodeURIComponent(url);
+  return url;
+}
+
+function renderProductCard(item, catId) {
+  const imgs = item.imgs && item.imgs.length ? item.imgs : (item.img ? [item.img] : []);
+  const itemJson = JSON.stringify(item).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+  const waMsg = encodeURIComponent(`Hi! I'm interested in ordering:\n\n*${item.name}*\n${item.desc}${item.price ? '\nPrice: $' + item.price + ' BSD' : ''}\n${item.sizes ? 'Sizes: ' + item.sizes : ''}\n\nCould you send me more details?`);
+  const waUrl = `https://wa.me/${WA_NUMBER}?text=${waMsg}`;
+  const isNew = item._createdAt && (Date.now() - new Date(item._createdAt).getTime()) < 14 * 864e5;
+  const priceHtml = item.por
+    ? `<div class="card-price-por">📲 Contact for Price</div>`
+    : `<div><div class="card-price">$${item.price}<span>BSD</span></div>${item.bulkPrice ? `<div class="bulk-price-tag">Bulk<span>$${item.bulkPrice}</span></div>` : ''}</div>`;
+
+  let imgContent = '';
+  if (imgs.length === 0) {
+    imgContent = `<div class="card-img-placeholder"><div class="placeholder-icon">${item.icon || '🏷️'}</div><div class="placeholder-text">Tap to add image</div></div>`;
+  } else if (imgs.length === 1) {
+    const esc = imgs[0].replace(/'/g, '%27');
+    imgContent = `<img class="card-img" src="${proxyImgUrl(imgs[0])}" alt="${escHtml(item.name)}" style="cursor:zoom-in;" onclick="event.stopPropagation();openLightbox(['${esc}'],0)" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'card-img-placeholder\\'><div class=\\'placeholder-icon\\'>${item.icon||'🏷️'}</div><div class=\\'placeholder-text\\'>No image</div></div>')">`;
+  } else {
+    const imgsJson = JSON.stringify(imgs).replace(/'/g, '%27');
+    const slides = imgs.map((src, i) => `<img class="carousel-slide" src="${proxyImgUrl(src)}" alt="${escHtml(item.name)}" style="cursor:zoom-in;" onclick="event.stopPropagation();openLightbox(JSON.parse(this.closest('.card-carousel').dataset.imgs),${i})" onerror="this.style.opacity='0.15'">`).join('');
+    const dots = imgs.map((_, i) => `<span class="carousel-dot${i === 0 ? ' active' : ''}"></span>`).join('');
+    imgContent = `<div class="card-carousel" data-idx="0" data-count="${imgs.length}" data-imgs='${imgsJson}' ontouchstart="carouselTouch(this,event,'start')" ontouchend="carouselTouch(this,event,'end')"><div class="carousel-track">${slides}</div><button class="carousel-prev" onclick="event.stopPropagation();carouselMove(this.parentElement,-1)">‹</button><button class="carousel-next" onclick="event.stopPropagation();carouselMove(this.parentElement,1)">›</button><div class="carousel-dots">${dots}</div><div class="photo-count">📷 ${imgs.length}</div></div>`;
+  }
+
+  const badgeRibbon = item.badge ? `<span class="card-badge">${escHtml(item.badge)}</span>` : '';
+  const newRibbon = isNew ? `<span class="card-new">NEW</span>` : '';
+  const soldOutOverlay = item.soldOut ? `<div class="card-sold-out"><div class="sold-out-banner">SOLD OUT</div></div>` : '';
+  const actionsClass = item.soldOut ? 'card-actions is-sold-out' : 'card-actions';
+  const supplierBtn = item.supplierLink ? `<button class="card-action-btn btn-supplier" onclick="event.stopPropagation();window.open('${escHtml(item.supplierLink)}','_blank')" title="Supplier link">🔗</button>` : '';
+
+  return `<div class="product-card" data-cat="${catId}" data-id="${item.id || ''}" data-item='${itemJson}' onclick="if(document.body.classList.contains('admin-mode'))openModal(this.dataset.cat,this.dataset.id)">
+    ${imgContent}
+    ${badgeRibbon}
+    ${newRibbon}
+    ${soldOutOverlay}
+    <div class="card-overlay"><button class="order-btn">✏️ Edit</button></div>
+    <div class="card-body">
+      <div class="card-name">${escHtml(item.name)}</div>
+      <div class="card-desc">${escHtml(item.desc)}</div>
+      <div class="card-footer">
+        ${priceHtml}
+        ${item.sizes ? `<div class="card-sizes">${escHtml(item.sizes)}</div>` : ''}
+      </div>
+    </div>
+    <div class="${actionsClass}" onclick="event.stopPropagation()">
+      <a class="card-action-btn btn-wa" href="${waUrl}" target="_blank">📲 WhatsApp</a>
+      <button class="card-action-btn btn-copy" onclick="copyItem(this)">📋 Copy</button>
+      ${supplierBtn}
+    </div>
+  </div>`;
+}
+
+function renderCategoryGrid(cat, items, activeSub, sort) {
+  let filtered = [...items];
+  if (activeSub) filtered = items.filter(it => it.sub === activeSub);
+  if (sort === 'price-asc')  filtered.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+  if (sort === 'price-desc') filtered.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+  if (sort === 'name-asc')   filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  const subQs = activeSub ? '?sub=' + encodeURIComponent(activeSub) : '';
+  const sortQs = sort ? (subQs ? '&sort=' + sort : '?sort=' + sort) : subQs;
+
+  let html = `<div class="cat-header">
+    <div class="cat-title">${cat.icon} ${cat.label}</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="cat-count">${items.length} items</div>
+      <select class="sort-select" name="sort" hx-get="/catalog/${cat.id}${subQs}" hx-target="#grid-container" hx-swap="innerHTML" hx-trigger="change">
+        <option value="" ${!sort ? 'selected' : ''}>Default</option>
+        <option value="price-asc" ${sort === 'price-asc' ? 'selected' : ''}>Price ↑</option>
+        <option value="price-desc" ${sort === 'price-desc' ? 'selected' : ''}>Price ↓</option>
+        <option value="name-asc" ${sort === 'name-asc' ? 'selected' : ''}>A – Z</option>
+      </select>
+    </div>
+  </div>
+  <div class="sub-filter-wrap">
+    <div class="sub-pill ${!activeSub ? 'active' : ''}" hx-get="/catalog/${cat.id}${sortQs}" hx-target="#grid-container" hx-swap="innerHTML">All</div>`;
+
+  for (const sub of cat.subs) {
+    const subCount = items.filter(it => it.sub === sub).length;
+    if (!activeSub || subCount > 0) {
+      const subUrl = `/catalog/${cat.id}?sub=${encodeURIComponent(sub)}${sort ? '&sort=' + sort : ''}`;
+      html += `<div class="sub-pill ${activeSub === sub ? 'active' : ''}" hx-get="${subUrl}" hx-target="#grid-container" hx-swap="innerHTML">${sub}</div>`;
+    }
+  }
+  html += `</div>`;
+
+  if (filtered.length === 0) {
+    html += `<div style="text-align:center;padding:60px 20px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">No items in this category yet.</div></div>`;
+  } else {
+    // Group by sub for section headers
+    if (!activeSub) {
+      for (const sub of cat.subs) {
+        const subItems = filtered.filter(it => it.sub === sub);
+        if (!subItems.length) continue;
+        html += `<div class="sub-section-header">${sub} <span>${subItems.length} item${subItems.length !== 1 ? 's' : ''}</span></div>`;
+        html += `<div class="product-grid" style="margin-bottom:8px;">${subItems.map(item => renderProductCard(item, cat.id)).join('')}<div class="add-card product-card" onclick="event.stopPropagation();openModal('${cat.id}',null,'${sub.replace(/'/g, "\\'")}')"><div class="add-icon">＋</div><div class="add-label">Add to ${sub}</div></div></div>`;
+      }
+      // orphans
+      const orphans = filtered.filter(it => !cat.subs.includes(it.sub));
+      if (orphans.length) {
+        html += `<div class="sub-section-header">More <span>${orphans.length} item${orphans.length !== 1 ? 's' : ''}</span></div>`;
+        html += `<div class="product-grid" style="margin-bottom:8px;">${orphans.map(item => renderProductCard(item, cat.id)).join('')}</div>`;
+      }
+    } else {
+      html += `<div class="product-grid" style="margin-bottom:8px;">${filtered.map(item => renderProductCard(item, cat.id)).join('')}<div class="add-card product-card" onclick="event.stopPropagation();openModal('${cat.id}',null,'${(activeSub || '').replace(/'/g, "\\'")}')"><div class="add-icon">＋</div><div class="add-label">Add to ${activeSub}</div></div></div>`;
+    }
+  }
+
+  // Add new item section for admin
+  html += `<div class="admin-section"><div class="sub-section-header" style="margin-top:24px;">Add New Item</div><div class="product-grid" style="margin-bottom:8px;"><div class="add-card product-card" onclick="event.stopPropagation();openModal('${cat.id}',null,null)"><div class="add-icon">＋</div><div class="add-label">Add Item</div></div></div></div>`;
+
+  return html;
+}
+
+// ── HTMX CATALOG ROUTES ────────────────────────────────────
+
+app.get('/catalog/:category', async (req, res) => {
+  const catId = req.params.category;
+  const cat = CATEGORIES.find(c => c.id === catId);
+  if (!cat) return res.status(404).send('Category not found');
+
+  const activeSub = req.query.sub || null;
+  const sort = req.query.sort || null;
+
+  try {
+    const r = await pool.query('SELECT id, category, data, created_at FROM items WHERE category = $1 ORDER BY id', [catId]);
+    const items = r.rows.map(row => Object.assign({ id: row.id, _createdAt: row.created_at }, row.data));
+    const html = renderCategoryGrid(cat, items, activeSub, sort);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (err) {
+    console.error('GET /catalog/:category error', err.message);
+    res.status(500).send('<div style="color:#e05555;text-align:center;padding:40px;">Failed to load catalog.</div>');
+  }
+});
+
+app.get('/catalog/search', async (req, res) => {
+  const q = (req.query.q || '').trim().toLowerCase();
+  if (!q) {
+    return res.send('<div style="text-align:center;padding:60px 20px;"><div style="font-family:Barlow Condensed,sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">Start typing to search...</div></div>');
+  }
+
+  try {
+    const pattern = `%${q}%`;
+    const r = await pool.query(
+      `SELECT id, category, data, created_at FROM items
+       WHERE LOWER(data->>'name') LIKE $1
+          OR LOWER(data->>'desc') LIKE $1
+          OR LOWER(data->>'badge') LIKE $1
+       ORDER BY id`,
+      [pattern]
+    );
+    if (r.rows.length === 0) {
+      return res.send(`<div style="text-align:center;padding:60px 20px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">No results for "${escHtml(q)}"</div></div>`);
+    }
+
+    // Group by category
+    const grouped = {};
+    r.rows.forEach(row => {
+      const cat = row.category;
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(Object.assign({ id: row.id, _createdAt: row.created_at }, row.data));
+    });
+
+    let html = '';
+    for (const [catId, items] of Object.entries(grouped)) {
+      const cat = CATEGORIES.find(c => c.id === catId);
+      if (!cat) continue;
+      html += `<div class="sub-section-header">${cat.icon} ${cat.label} <span>${items.length}</span></div>`;
+      html += `<div class="product-grid" style="margin-bottom:8px;">${items.map(item => renderProductCard(item, catId)).join('')}</div>`;
+    }
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (err) {
+    console.error('GET /catalog/search error', err.message);
+    res.status(500).send('<div style="color:#e05555;text-align:center;padding:40px;">Search failed.</div>');
+  }
+});
+
+// ── BULK ALBUM IMPORTER ────────────────────────────────────
+
+function fetchSupplierPage(url) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const proto = u.protocol === 'https:' ? https : http;
+
+    let referer = u.origin + '/';
+    if (u.hostname.includes('yupoo.com')) {
+      const m = u.hostname.match(/^(.+)\.x\.yupoo\.com$/);
+      if (m) referer = `https://${m[1]}.x.yupoo.com/`;
+      else referer = 'https://www.yupoo.com/';
+    }
+
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': referer,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+      },
+    };
+
+    const req = proto.get(url, options, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        fetchSupplierPage(res.headers.location).then(resolve).catch(reject);
+        return;
+      }
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve(data));
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    req.setTimeout(15000, () => { req.destroy(); reject(new Error('Request timeout')); });
+  });
+}
+
+function stripThumb(url) {
+  return (url || '').replace(/\/thumb\/[^/?#]+\//g, '/');
+}
+
+function scrapeYupoo(html, baseUrl) {
+  const products = [];
+  const seen = new Set();
+
+  // Strategy 1: album grid items — links containing album IDs with images
+  const linkRe = /<a[^>]*href="([^"]*(?:\/albums\/\d+|\/photos\/\d+)[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = linkRe.exec(html)) !== null) {
+    const href = match[1];
+    const inner = match[2];
+
+    // Extract image from src, data-src, data-origin
+    const imgRe = /<img[^>]*(?:data-src|data-origin|src)="([^"]*)"[^>]*>/i;
+    const imgMatch = inner.match(imgRe);
+    if (!imgMatch) continue;
+
+    let thumbUrl = stripThumb(imgMatch[1]);
+    if (!thumbUrl.match(/\.(jpg|jpeg|png|webp|gif)/i)) continue;
+    if (/logo|icon|avatar|sprite/i.test(thumbUrl)) continue;
+
+    const fname = thumbUrl.split('/').pop().split('?')[0];
+    if (seen.has(fname)) continue;
+    seen.add(fname);
+
+    // Name: alt text > title div text > inner text
+    let name = '';
+    const altM = inner.match(/alt="([^"]*)"/i);
+    if (altM && altM[1].trim().length > 1) name = altM[1].trim();
+    if (!name) {
+      const titleM = inner.match(/<div[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/div>/i) ||
+                      inner.match(/<span[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/span>/i);
+      if (titleM) name = titleM[1].trim();
+    }
+    if (!name) {
+      name = inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (name.length > 80) name = name.substring(0, 80);
+    }
+    if (!name || name.length < 2) name = fname.replace(/\.(jpg|jpeg|png|webp|gif)/i, '').replace(/[-_]/g, ' ');
+
+    const detailUrl = href.startsWith('http') ? href : (new URL(href, baseUrl)).href;
+    products.push({
+      name: name.replace(/&amp;/g, '&').replace(/&#?[a-z0-9]+;/gi, c => c === '&amp;' ? '&' : c === '&lt;' ? '<' : c === '&gt;' ? '>' : c),
+      thumbnail: thumbUrl,
+      detailUrl,
+    });
+  }
+
+  // Fallback: any Yupoo CDN image not already captured
+  if (products.length === 0) {
+    const imgRe = /<img[^>]*(?:data-src|data-origin|src)="([^"]*photo\.yupoo\.com[^"]*)"[^>]*>/gi;
+    while ((match = imgRe.exec(html)) !== null) {
+      let url = stripThumb(match[1]);
+      const fname = url.split('/').pop().split('?')[0];
+      if (seen.has(fname) || /logo|icon|avatar|sprite/i.test(fname)) continue;
+      seen.add(fname);
+      products.push({ name: fname.replace(/\.(jpg|jpeg|png|webp|gif)/i, '').replace(/[-_]/g, ' '), thumbnail: url, detailUrl: baseUrl });
+    }
+  }
+
+  return products;
+}
+
+function scrapeQiqiyg(html, baseUrl) {
+  const products = [];
+  const seen = new Set();
+
+  // qiqiyg product cards: <a class="goods-item"> or <div class="goods-item">
+  const itemRe = /<a[^>]*href="([^"]*)"[^>]*class="[^"]*goods[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = itemRe.exec(html)) !== null) {
+    const inner = match[2];
+    const imgM = inner.match(/<img[^>]*src="([^"]*)"[^>]*>/i);
+    if (!imgM) continue;
+    const nameM = inner.match(/<[^>]*class="[^"]*name[^"]*"[^>]*>([^<]+)</i) || inner.match(/alt="([^"]*)"/i);
+    const name = nameM ? nameM[1].trim() : inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 80);
+    const fname = imgM[1].split('/').pop().split('?')[0];
+    if (seen.has(fname) || /logo|icon/i.test(fname)) continue;
+    seen.add(fname);
+    products.push({ name: name || 'Untitled', thumbnail: imgM[1], detailUrl: match[1].startsWith('http') ? match[1] : new URL(match[1], baseUrl).href });
+  }
+  return products;
+}
+
+function scrapeRicheng(html, baseUrl) {
+  const products = [];
+  const seen = new Set();
+
+  // richeng86888.ru product cards
+  const itemRe = /<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = itemRe.exec(html)) !== null) {
+    const inner = match[2];
+    const imgM = inner.match(/<img[^>]*src="([^"]*)"[^>]*>/i);
+    if (!imgM) continue;
+    if (!imgM[1].match(/\.(jpg|jpeg|png|webp|gif)/i)) continue;
+    const fname = imgM[1].split('/').pop().split('?')[0];
+    if (seen.has(fname) || /logo|icon|avatar/i.test(fname)) continue;
+    seen.add(fname);
+    const nameM = inner.match(/alt="([^"]*)"/i);
+    const name = nameM ? nameM[1].trim() : fname.replace(/\.(jpg|jpeg|png|webp|gif)/i, '').replace(/[-_]/g, ' ');
+    products.push({ name: name || 'Untitled', thumbnail: imgM[1], detailUrl: match[1].startsWith('http') ? match[1] : new URL(match[1], baseUrl).href });
+  }
+  return products;
+}
+
+app.post('/api/importer/scrape', requireAdmin, async (req, res) => {
+  const { url } = req.body || {};
+  if (!url) return res.status(400).json({ error: 'Missing URL' });
+  if (!/yupoo\.com|qiqiyg\.com|richeng86888\.ru/i.test(url)) {
+    return res.status(400).json({ error: 'Unsupported supplier. Supported: Yupoo, qiqiyg, richeng86888.ru' });
+  }
+
+  try {
+    const html = await fetchSupplierPage(url);
+    let products = [];
+    if (/yupoo\.com/i.test(url)) products = scrapeYupoo(html, url);
+    else if (/qiqiyg\.com/i.test(url)) products = scrapeQiqiyg(html, url);
+    else if (/richeng86888\.ru/i.test(url)) products = scrapeRicheng(html, url);
+
+    // Filter out junk (very short names, likely non-products)
+    products = products.filter(p => p.name && p.name.length >= 2 && p.thumbnail);
+
+    return res.json({ products, count: products.length });
+  } catch (err) {
+    console.error('Importer scrape error:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch page. The site may be blocking automated access.' });
+  }
+});
+
 // ── START ─────────────────────────────────────────────────
 let server = null;
 

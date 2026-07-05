@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" href="unlmtd-icon.svg">
 <meta name="theme-color" content="#0c0c0c">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -368,13 +369,16 @@
   <a href="/" style="display:flex;align-items:center;text-decoration:none;flex-shrink:0;">
     <img src="unlmtd-logo.svg" alt="UNLMTD Wholesale" style="height:44px;width:auto;display:block;">
   </a>
-  <input class="search-input" id="search-input" type="text" placeholder="🔍 Search items..." oninput="onSearch(this.value)" autocomplete="off">
+  <input class="search-input" id="search-input" type="text" name="q" placeholder="🔍 Search items..."
+    hx-get="/catalog/search" hx-target="#grid-container" hx-swap="innerHTML"
+    hx-trigger="keyup changed delay:200ms" autocomplete="off">
   <div class="topbar-right">
     <span class="save-indicator" id="save-indicator"></span>
     <button class="admin-btn" id="track-btn" onclick="openTrackModal()">📦 Track Order</button>
     <button class="admin-btn" id="orders-btn" onclick="openOrdersModal()" style="display:none;">🗂 Orders</button>
     <button class="admin-btn" id="customers-btn" onclick="openCustomersModal()" style="display:none;position:relative;">👥 Customers<span id="crm-dot" style="display:none;position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#e05555;"></span></button>
     <button class="admin-btn" id="bookmarklet-btn" onclick="openBookmarkletModal()" style="display:none;">📥 Importer</button>
+    <button class="admin-btn" id="bulkimport-btn" onclick="openBulkImportModal()" style="display:none;">📦 Bulk Import</button>
     <button class="admin-btn" id="admin-toggle-btn" onclick="toggleAdminPanel()">⚙ Admin</button>
     <a class="whatsapp-btn" href="https://wa.me/12427270271" target="_blank">📲 Order Now</a>
   </div>
@@ -423,8 +427,7 @@
       Cost $<input id="markup-base" type="number" min="1" value="25" oninput="updateMarkup(document.getElementById('markup-slider').value)" style="width:64px;background:var(--mid);border:1px solid rgba(255,255,255,0.12);border-bottom-color:var(--gold);color:var(--off-white);font-family:'Barlow',sans-serif;font-size:13px;padding:3px 6px;outline:none;text-align:center;"> → sell at <strong id="markup-sell">$35.00</strong> BSD &nbsp;·&nbsp; Profit: <strong id="markup-profit">$10.00</strong>
     </div>
   </div>
-  <div id="search-results" style="display:none;"></div>
-  <div id="pages-container">
+  <div id="grid-container" hx-get="/catalog/mens" hx-trigger="load">
     <div class="catalog-loading">
       <div class="loading-spinner"></div>
       <div class="loading-text">Loading catalog...</div>
@@ -509,6 +512,60 @@
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeImportModal()">Cancel</button>
       <button class="btn-primary" onclick="saveImportedItem()">Add to Catalog</button>
+    </div>
+  </div>
+</div>
+
+<!-- BULK IMPORT MODAL -->
+<div class="modal-backdrop" id="bulkimport-modal">
+  <div class="modal" style="max-width:780px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;">
+    <div class="modal-header" style="flex-shrink:0;">
+      <div class="modal-title">📦 BULK IMPORT</div>
+      <button class="modal-close" onclick="closeBulkImportModal()">✕</button>
+    </div>
+    <div class="modal-body" style="flex:1;overflow-y:auto;min-height:0;padding:20px 28px;">
+      <!-- Step 1: URL input -->
+      <div id="bis-step1">
+        <div class="field-group">
+          <label class="field-label">Supplier Album / Gallery URL</label>
+          <input class="field-input" id="bis-url" type="text" placeholder="https://xiaozhi99.x.yupoo.com/albums" onkeydown="if(event.key==='Enter')scrapeAlbum()">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Default Category</label>
+          <select class="field-input" id="bis-cat" style="cursor:pointer;" onchange="updateBisSubs()"></select>
+        </div>
+        <div class="field-row" style="gap:10px;">
+          <div class="field-group"><label class="field-label">Subcategory</label><select class="field-input" id="bis-sub" style="cursor:pointer;"></select></div>
+          <div class="field-group"><label class="field-label">Cost per item (BSD)</label><input class="field-input" id="bis-cost" type="text" placeholder="0.00"></div>
+          <div class="field-group"><label class="field-label">Retail markup %</label><input class="field-input" id="bis-mk-retail" type="number" value="50"></div>
+          <div class="field-group"><label class="field-label">Bulk markup %</label><input class="field-input" id="bis-mk-bulk" type="number" value="30"></div>
+        </div>
+        <button class="btn-primary" style="width:100%;" onclick="scrapeAlbum()">🔍 Scrape Products</button>
+        <div id="bis-loading" style="display:none;text-align:center;padding:32px;">
+          <div class="loading-spinner" style="margin:0 auto;"></div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-top:12px;">Fetching album...</div>
+        </div>
+        <div id="bis-error" style="display:none;color:#e05555;font-size:13px;margin-top:12px;"></div>
+      </div>
+
+      <!-- Step 2: Preview grid -->
+      <div id="bis-step2" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">
+            <span id="bis-found">0</span> products found
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-secondary" style="font-size:10px;padding:6px 12px;" onclick="bisSelectAll()">Select All</button>
+            <button class="btn-secondary" style="font-size:10px;padding:6px 12px;" onclick="bisSelectNone()">Deselect All</button>
+          </div>
+        </div>
+        <div style="max-height:42vh;overflow-y:auto;" id="bis-grid"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button class="btn-secondary" onclick="closeBulkImportModal()">Cancel</button>
+          <button class="btn-primary" style="flex:1;" id="bis-import-btn" onclick="bulkImport()">Import 0 Selected</button>
+        </div>
+        <div id="bis-progress" style="display:none;margin-top:12px;font-size:12px;color:var(--text-dim);"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -720,9 +777,8 @@ let catalog       = {};
 let activeCat     = CATEGORIES[0].id;
 let activeSub     = {};
 let activeSort    = {};
-let searchQuery   = '';
 let editingCat    = null;
-let editingIdx    = null;
+let editingItemId = null;
 let adminToken    = sessionStorage.getItem('unlmtd_admin_token') || null;
 
 // ── SAVE INDICATOR ───────────────────────────────────────
@@ -773,6 +829,7 @@ function setAdminMode(token) {
   document.body.classList.add('admin-mode');
   document.getElementById('admin-toggle-btn').textContent = '🔓 Admin';
   document.getElementById('bookmarklet-btn').style.display = 'inline-block';
+  document.getElementById('bulkimport-btn').style.display = 'inline-block';
   document.getElementById('orders-btn').style.display = 'inline-block';
   document.getElementById('customers-btn').style.display = 'inline-block';
 }
@@ -783,6 +840,7 @@ function clearAdminMode() {
   document.body.classList.remove('admin-mode');
   document.getElementById('admin-toggle-btn').textContent = '⚙ Admin';
   document.getElementById('bookmarklet-btn').style.display = 'none';
+  document.getElementById('bulkimport-btn').style.display = 'none';
   document.getElementById('orders-btn').style.display = 'none';
   document.getElementById('customers-btn').style.display = 'none';
 }
@@ -792,7 +850,7 @@ function toggleAdminPanel() {
   if (adminToken) {
     if (confirm('Log out of admin mode?')) {
       clearAdminMode();
-      buildPages();
+      htmx.ajax('GET', '/catalog/' + activeCat, '#grid-container');
     }
     return;
   }
@@ -814,7 +872,7 @@ async function submitAdminLogin() {
       const j = await res.json();
       setAdminMode(j.token);
       closeAdminModal();
-      buildPages();
+      htmx.ajax('GET', '/catalog/' + activeCat, '#grid-container');
       const pending = sessionStorage.getItem('pending_import');
       if (pending) { try { openImportModal(JSON.parse(pending)); } catch(e) {} }
     } else {
@@ -843,11 +901,34 @@ function updateMarkup(pct) {
   document.getElementById('markup-profit').textContent = '$' + profit.toFixed(2);
 }
 
+// ── HTMX EVENT HANDLERS ──────────────────────────────────
+document.body.addEventListener('htmx:beforeRequest', function(evt) {
+  const url = evt.detail.pathInfo.requestPath;
+  const catMatch = url.match(/\/catalog\/([a-z]+)/);
+  if (catMatch) {
+    activeCat = catMatch[1];
+    document.querySelectorAll('.nav-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.cat === activeCat);
+    });
+  }
+});
+
+// Clear search triggers category reload
+document.addEventListener('DOMContentLoaded', function() {
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      if (!this.value.trim()) {
+        htmx.ajax('GET', '/catalog/' + activeCat, '#grid-container');
+      }
+    });
+  }
+});
+
 // ── INIT ──────────────────────────────────────────────────
 async function init() {
   CATEGORIES.forEach(c => { activeSub[c.id] = null; activeSort[c.id] = ''; });
 
-  // Validate stored password
   // Validate stored token
   if (adminToken) {
     try {
@@ -856,6 +937,7 @@ async function init() {
         document.body.classList.add('admin-mode');
         document.getElementById('admin-toggle-btn').textContent = '🔓 Admin';
         document.getElementById('bookmarklet-btn').style.display = 'inline-block';
+        document.getElementById('bulkimport-btn').style.display = 'inline-block';
         document.getElementById('orders-btn').style.display = 'inline-block';
         document.getElementById('customers-btn').style.display = 'inline-block';
       } else {
@@ -871,10 +953,10 @@ async function init() {
   }
 
   buildTabs();
-  buildPages();
   updateTotalCount();
   updateMarkup(40);
   checkImportParams();
+  // Grid loads via hx-trigger="load" on #grid-container
 }
 
 // ── RENDER ────────────────────────────────────────────────
@@ -883,7 +965,8 @@ let _ddTimer = null;
 function buildTabs() {
   const nav = document.getElementById('nav-tabs');
   nav.innerHTML = CATEGORIES.map(c =>
-    `<div class="nav-tab ${c.id === activeCat ? 'active' : ''}" data-cat="${c.id}" onclick="switchCat('${c.id}')">${c.icon} ${c.label}</div>`
+    `<div class="nav-tab ${c.id === activeCat ? 'active' : ''}" data-cat="${c.id}"
+      hx-get="/catalog/${c.id}" hx-target="#grid-container" hx-swap="innerHTML">${c.icon} ${c.label}</div>`
   ).join('');
   nav.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('mouseenter', () => showNavDropdown(tab, tab.dataset.cat));
@@ -912,191 +995,19 @@ function scheduleHideDropdown() {
 
 function jumpToSub(catId, sub) {
   document.getElementById('nav-dropdown').classList.remove('open');
-  switchCat(catId);
-  setSub(catId, sub);
-  document.getElementById(`page-${catId}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function buildPages() {
-  const container = document.getElementById('pages-container');
-  container.innerHTML = CATEGORIES.map(c => `
-    <div class="cat-page ${c.id === activeCat ? 'active' : ''}" id="page-${c.id}">
-      <div class="cat-header">
-        <div class="cat-title">${c.icon} ${c.label}</div>
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div class="cat-count" id="count-${c.id}">${(catalog[c.id]||[]).length} items</div>
-          <select class="sort-select" onchange="setSort('${c.id}',this.value)">
-            <option value="">Default</option>
-            <option value="price-asc">Price ↑</option>
-            <option value="price-desc">Price ↓</option>
-            <option value="name-asc">A – Z</option>
-          </select>
-        </div>
-      </div>
-      <div class="sub-filter-wrap" id="pills-${c.id}">${buildPills(c)}</div>
-      <div id="grid-${c.id}">${renderSections(c.id)}</div>
-    </div>
-  `).join('');
-}
-
-function buildPills(cat) {
-  const current = activeSub[cat.id];
-  let html = `<div class="sub-pill ${current === null ? 'active' : ''}" onclick="setSub('${cat.id}', null)">All</div>`;
-  html += cat.subs.map(s =>
-    `<div class="sub-pill ${current === s ? 'active' : ''}" onclick="setSub('${cat.id}', '${s}')">${s}</div>`
-  ).join('');
-  return html;
-}
-
-function sortItems(arr, sortKey) {
-  if (!sortKey) return arr;
-  const sorted = [...arr];
-  if (sortKey === 'price-asc')  sorted.sort((a, b) => (parseFloat(a.item.price)||0) - (parseFloat(b.item.price)||0));
-  if (sortKey === 'price-desc') sorted.sort((a, b) => (parseFloat(b.item.price)||0) - (parseFloat(a.item.price)||0));
-  if (sortKey === 'name-asc')   sorted.sort((a, b) => (a.item.name||'').localeCompare(b.item.name||''));
-  return sorted;
-}
-
-function renderSections(catId) {
-  const cat    = CATEGORIES.find(c => c.id === catId);
-  const items  = catalog[catId] || [];
-  const filter = activeSub[catId];
-  const sort   = activeSort[catId] || '';
-  const subsToShow = filter ? [filter] : cat.subs;
-  let html = '';
-  let totalVisible = 0;
-
-  subsToShow.forEach(sub => {
-    let subItems = items.map((item, i) => ({ item, i })).filter(({ item }) => item.sub === sub);
-    subItems = sortItems(subItems, sort);
-    if (subItems.length === 0 && !filter) return;
-    totalVisible += subItems.length;
-
-    html += `<div class="sub-section-header">${sub} <span>${subItems.length} item${subItems.length !== 1 ? 's' : ''}</span></div>`;
-    html += `<div class="product-grid" style="margin-bottom:8px;">`;
-    html += subItems.map(({ item, i }) => renderCard(item, catId, i)).join('');
-    html += `<div class="add-card product-card" onclick="openModal('${catId}', null, '${sub}')">
-      <div class="add-icon">＋</div>
-      <div class="add-label">Add to ${sub}</div>
-    </div></div>`;
-  });
-
-  // Safety net: items whose sub no longer matches the category's subs still show under "More"
-  if (!filter) {
-    let orphans = items.map((item, i) => ({ item, i })).filter(({ item }) => !cat.subs.includes(item.sub));
-    orphans = sortItems(orphans, sort);
-    if (orphans.length) {
-      totalVisible += orphans.length;
-      html += `<div class="sub-section-header">More <span>${orphans.length} item${orphans.length !== 1 ? 's' : ''}</span></div>`;
-      html += `<div class="product-grid" style="margin-bottom:8px;">`;
-      html += orphans.map(({ item, i }) => renderCard(item, catId, i)).join('');
-      html += `</div>`;
-    }
-  }
-
-  if (totalVisible === 0 && !filter) {
-    html += `<div style="text-align:center;padding:60px 20px;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">No items in this category yet.</div>
-      <div class="admin-section" style="margin-top:10px;font-size:12px;color:var(--text-dim);">Click ＋ Add Item below to get started.</div>
-    </div>`;
-  }
-
-  if (!filter) {
-    html += `<div class="admin-section">
-      <div class="sub-section-header" style="margin-top:24px;">Add New Item</div>
-      <div class="product-grid" style="margin-bottom:8px;">
-        <div class="add-card product-card" onclick="openModal('${catId}', null, null)">
-          <div class="add-icon">＋</div>
-          <div class="add-label">Add Item</div>
-        </div>
-      </div>
-    </div>`;
-  }
-  return html;
-}
-
-function renderCard(item, catId, idx) {
-  const imgs = item.imgs?.length ? item.imgs : (item.img ? [item.img] : []);
-  let imgContent = '';
-  if (imgs.length === 0) {
-    imgContent = `<div class="card-img-placeholder">
-      <div class="placeholder-icon">${item.icon || '🏷️'}</div>
-      <div class="placeholder-text">Tap to add image</div>
-    </div>`;
-  } else if (imgs.length === 1) {
-    const imgsAttr = imgs[0].replace(/'/g, '%27');
-    imgContent = `<img class="card-img" src="${proxyImgUrl(imgs[0])}" alt="${item.name}" style="cursor:zoom-in;"
-      onclick="event.stopPropagation();openLightbox(['${imgsAttr}'],0)"
-      onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'card-img-placeholder\\'><div class=\\'placeholder-icon\\'>${item.icon||'🏷️'}</div><div class=\\'placeholder-text\\'>No image</div></div>')">`;
-  } else {
-    const imgsJson = JSON.stringify(imgs).replace(/'/g, '%27');
-    const slides = imgs.map((src, i) => `<img class="carousel-slide" src="${proxyImgUrl(src)}" alt="${item.name}" style="cursor:zoom-in;"
-      onclick="event.stopPropagation();openLightbox(JSON.parse(this.closest('.card-carousel').dataset.imgs),${i})"
-      onerror="this.style.opacity='0.15'">`).join('');
-    const dots   = imgs.map((_, i) => `<span class="carousel-dot${i===0?' active':''}"></span>`).join('');
-    imgContent = `<div class="card-carousel" data-idx="0" data-count="${imgs.length}" data-imgs='${imgsJson}'
-      ontouchstart="carouselTouch(this,event,'start')" ontouchend="carouselTouch(this,event,'end')">
-      <div class="carousel-track">${slides}</div>
-      <button class="carousel-prev" onclick="event.stopPropagation();carouselMove(this.parentElement,-1)">‹</button>
-      <button class="carousel-next" onclick="event.stopPropagation();carouselMove(this.parentElement,1)">›</button>
-      <div class="carousel-dots">${dots}</div>
-      <div class="photo-count">📷 ${imgs.length}</div>
-    </div>`;
-  }
-  const priceHtml      = item.por
-    ? `<div class="card-price-por">📲 Contact for Price</div>`
-    : `<div>
-        <div class="card-price">$${item.price}<span>BSD</span></div>
-        ${item.bulkPrice ? `<div class="bulk-price-tag">Bulk<span>$${item.bulkPrice}</span></div>` : ''}
-       </div>`;
-
-  const waMsg       = encodeURIComponent(`Hi! I'm interested in ordering:\n\n*${item.name}*\n${item.desc}${item.price ? '\nPrice: $' + item.price + ' BSD' : ''}\n${item.sizes ? 'Sizes: ' + item.sizes : ''}\n\nCould you send me more details?`);
-  const waUrl       = `https://wa.me/${WA_NUMBER}?text=${waMsg}`;
-  const supplierBtn = item.supplierLink
-    ? `<button class="card-action-btn btn-supplier" onclick="event.stopPropagation();window.open('${item.supplierLink}','_blank')" title="Supplier link">🔗</button>`
-    : '';
-  const soldOutOverlay = item.soldOut
-    ? `<div class="card-sold-out"><div class="sold-out-banner">SOLD OUT</div></div>`
-    : '';
-  const actionsClass = item.soldOut ? 'card-actions is-sold-out' : 'card-actions';
-  const isNew = item._createdAt && (Date.now() - new Date(item._createdAt).getTime()) < 14 * 864e5;
-  const badgeRibbon = item.badge ? `<span class="card-badge">${item.badge}</span>` : '';
-  const newRibbon   = isNew ? `<span class="card-new">NEW</span>` : '';
-
-  return `
-    <div class="product-card" onclick="openModal('${catId}', ${idx}, null)">
-      ${imgContent}
-      ${badgeRibbon}
-      ${newRibbon}
-      ${soldOutOverlay}
-      <div class="card-overlay"><button class="order-btn">✏️ Edit</button></div>
-      <div class="card-body">
-        <div class="card-name">${item.name}</div>
-        <div class="card-desc">${item.desc}</div>
-        <div class="card-footer">
-          ${priceHtml}
-          ${item.sizes ? `<div class="card-sizes">${item.sizes}</div>` : ''}
-        </div>
-      </div>
-      <div class="${actionsClass}" onclick="event.stopPropagation()">
-        <a class="card-action-btn btn-wa" href="${waUrl}" target="_blank">📲 WhatsApp</a>
-        <button class="card-action-btn btn-copy" onclick="copyItem(this, '${catId}', ${idx})">📋 Copy</button>
-        ${supplierBtn}
-      </div>
-    </div>`;
-}
-
-function setSub(catId, sub) {
-  activeSub[catId] = sub;
-  document.getElementById(`pills-${catId}`).innerHTML = buildPills(CATEGORIES.find(c => c.id === catId));
-  document.getElementById(`grid-${catId}`).innerHTML  = renderSections(catId);
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.cat === catId));
+  activeCat = catId;
+  htmx.ajax('GET', `/catalog/${catId}?sub=${encodeURIComponent(sub)}`, '#grid-container');
 }
 
 function refreshPage(catId) {
-  document.getElementById(`pills-${catId}`).innerHTML = buildPills(CATEGORIES.find(c => c.id === catId));
-  document.getElementById(`grid-${catId}`).innerHTML  = renderSections(catId);
-  document.getElementById(`count-${catId}`).textContent = `${(catalog[catId]||[]).length} items`;
   updateTotalCount();
+  const sub = activeSub[catId];
+  const sort = activeSort[catId];
+  let url = '/catalog/' + catId;
+  if (sub) url += '?sub=' + encodeURIComponent(sub);
+  if (sort) url += (sub ? '&sort=' : '?sort=') + sort;
+  htmx.ajax('GET', url, '#grid-container');
 }
 
 function updateTotalCount() {
@@ -1106,16 +1017,17 @@ function updateTotalCount() {
 
 // ── NAVIGATION ────────────────────────────────────────────
 function switchCat(catId) {
-  document.querySelectorAll('.cat-page').forEach(p => p.classList.remove('active'));
-  document.getElementById(`page-${catId}`).classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.cat === catId));
   activeCat = catId;
+  htmx.ajax('GET', '/catalog/' + catId, '#grid-container');
 }
 
 // ── COPY ITEM ─────────────────────────────────────────────
-function copyItem(btn, catId, idx) {
-  const item = catalog[catId][idx];
-  let text = `*${item.name}*\n${item.desc}`;
+function copyItem(btn) {
+  const card = btn.closest('.product-card');
+  if (!card || !card.dataset.item) return;
+  const item = JSON.parse(card.dataset.item.replace(/&quot;/g, '"'));
+  let text = `*${item.name || ''}*\n${item.desc || ''}`;
   if (!item.por && item.price) text += `\nPrice: $${item.price} BSD`;
   if (item.bulkPrice)          text += `\nBulk Price: $${item.bulkPrice} BSD`;
   if (item.sizes)              text += `\nSizes: ${item.sizes}`;
@@ -1135,11 +1047,11 @@ function togglePriceField() {
   document.getElementById('price-field-group').style.pointerEvents = isPor ? 'none' : 'auto';
 }
 
-function openModal(catId, idx, defaultSub) {
+function openModal(catId, itemId, defaultSub) {
   if (!document.body.classList.contains('admin-mode')) return;
   editingCat = catId;
-  editingIdx = idx;
-  const isNew = idx === null;
+  editingItemId = itemId ? parseInt(itemId, 10) : null;
+  const isNew = editingItemId === null;
   document.getElementById('modal-title').textContent = isNew ? 'ADD NEW ITEM' : 'EDIT ITEM';
   document.getElementById('delete-btn').style.display = isNew ? 'none' : 'block';
 
@@ -1148,6 +1060,8 @@ function openModal(catId, idx, defaultSub) {
   subSelect.innerHTML = cat.subs.map(s => `<option value="${s}">${s}</option>`).join('');
 
   if (!isNew) {
+    const idx = (catalog[catId] || []).findIndex(i => i.id === editingItemId);
+    if (idx === -1) { closeModal(); return; }
     const item = catalog[catId][idx];
     document.getElementById('edit-name').value          = item.name         || '';
     document.getElementById('edit-desc').value          = item.desc         || '';
@@ -1185,7 +1099,7 @@ function openModal(catId, idx, defaultSub) {
 
 function closeModal() {
   document.getElementById('modal').classList.remove('open');
-  editingCat = null; editingIdx = null;
+  editingCat = null; editingItemId = null;
 }
 
 function saveItem() {
@@ -1206,7 +1120,7 @@ function saveItem() {
   // Use per-item API
   (async () => {
     try {
-      if (editingIdx === null) {
+      if (editingItemId === null) {
         // create
         const res = await fetch('/api/items', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
@@ -1218,8 +1132,9 @@ function saveItem() {
         item.id = j.id;
         catalog[editingCat].push(item);
       } else {
-        const existing = catalog[editingCat][editingIdx];
-        const id = existing.id;
+        const idx = catalog[editingCat].findIndex(i => i.id === editingItemId);
+        if (idx === -1) { showSave('error', '✕ Item not found'); return; }
+        const id = catalog[editingCat][idx].id;
         const res = await fetch(`/api/items/${id}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
           body: JSON.stringify({ category: editingCat, sub: item.sub, data: item })
@@ -1227,7 +1142,7 @@ function saveItem() {
         if (res.status === 401) { showSave('error', '✕ Session expired — log in again'); clearAdminMode(); return; }
         if (!res.ok) { showSave('error', '✕ Save failed'); return; }
         item.id = id;
-        catalog[editingCat][editingIdx] = item;
+        catalog[editingCat][idx] = item;
       }
       refreshPage(editingCat);
       closeModal();
@@ -1239,17 +1154,17 @@ function saveItem() {
 }
 
 function deleteItem() {
-  if (editingIdx === null) return;
+  if (editingItemId === null) return;
   if (!confirm('Delete this item? This cannot be undone.')) return;
   (async () => {
     try {
-      const existing = catalog[editingCat][editingIdx];
-      if (existing && existing.id) {
-        const res = await fetch(`/api/items/${existing.id}`, { method: 'DELETE', headers: { 'x-admin-token': adminToken } });
+      const idx = catalog[editingCat].findIndex(i => i.id === editingItemId);
+      if (idx !== -1 && catalog[editingCat][idx].id) {
+        const res = await fetch(`/api/items/${catalog[editingCat][idx].id}`, { method: 'DELETE', headers: { 'x-admin-token': adminToken } });
         if (res.status === 401) { showSave('error', '✕ Session expired — log in again'); clearAdminMode(); return; }
         if (!res.ok) { showSave('error', '✕ Delete failed'); return; }
+        catalog[editingCat].splice(idx, 1);
       }
-      catalog[editingCat].splice(editingIdx, 1);
       refreshPage(editingCat);
       closeModal();
       showSave('saved', '✓ Saved');
@@ -1610,48 +1525,160 @@ function getImportImgs() {
     .map(i => i.value.trim()).filter(Boolean);
 }
 
-// ── SEARCH ───────────────────────────────────────────────
-function onSearch(val) {
-  searchQuery = val.trim().toLowerCase();
-  const resultsEl = document.getElementById('search-results');
-  const pagesEl   = document.getElementById('pages-container');
-  if (searchQuery) {
-    pagesEl.style.display   = 'none';
-    resultsEl.style.display = 'block';
-    renderSearchResults();
-  } else {
-    pagesEl.style.display   = '';
-    resultsEl.style.display = 'none';
+// ── BULK IMPORT ───────────────────────────────────────────
+let _bisProducts = [];
+
+function openBulkImportModal() {
+  const catSel = document.getElementById('bis-cat');
+  catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
+  updateBisSubs();
+  document.getElementById('bis-url').value = '';
+  document.getElementById('bis-cost').value = '';
+  document.getElementById('bis-error').style.display = 'none';
+  document.getElementById('bis-step1').style.display = '';
+  document.getElementById('bis-step2').style.display = 'none';
+  document.getElementById('bis-loading').style.display = 'none';
+  _bisProducts = [];
+  document.getElementById('bulkimport-modal').classList.add('open');
+  setTimeout(() => document.getElementById('bis-url').focus(), 100);
+}
+
+function closeBulkImportModal() {
+  document.getElementById('bulkimport-modal').classList.remove('open');
+  _bisProducts = [];
+}
+
+function updateBisSubs() {
+  const cat = CATEGORIES.find(c => c.id === document.getElementById('bis-cat').value);
+  document.getElementById('bis-sub').innerHTML = (cat ? cat.subs : []).map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+async function scrapeAlbum() {
+  const url = document.getElementById('bis-url').value.trim();
+  if (!url) return;
+  document.getElementById('bis-loading').style.display = '';
+  document.getElementById('bis-error').style.display = 'none';
+  try {
+    const res = await fetch('/api/importer/scrape', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+      body: JSON.stringify({ url })
+    });
+    if (!res.ok) {
+      const j = await res.json();
+      throw new Error(j.error || 'Scrape failed');
+    }
+    const j = await res.json();
+    _bisProducts = j.products || [];
+    document.getElementById('bis-found').textContent = _bisProducts.length;
+    document.getElementById('bis-loading').style.display = 'none';
+    document.getElementById('bis-step1').style.display = 'none';
+    document.getElementById('bis-step2').style.display = '';
+    renderBisGrid();
+    updateBisImportBtn();
+  } catch (e) {
+    document.getElementById('bis-error').textContent = e.message || 'Connection error.';
+    document.getElementById('bis-error').style.display = '';
+    document.getElementById('bis-loading').style.display = 'none';
   }
 }
 
-function renderSearchResults() {
-  const q = searchQuery;
-  let html = '';
-  let total = 0;
-  CATEGORIES.forEach(cat => {
-    const matches = (catalog[cat.id] || [])
-      .map((item, i) => ({ item, i }))
-      .filter(({ item }) => (item.name + ' ' + (item.desc||'') + ' ' + (item.badge||'')).toLowerCase().includes(q));
-    if (!matches.length) return;
-    total += matches.length;
-    html += `<div class="sub-section-header">${cat.icon} ${cat.label} <span>${matches.length}</span></div>`;
-    html += `<div class="product-grid" style="margin-bottom:8px;">`;
-    html += matches.map(({ item, i }) => renderCard(item, cat.id, i)).join('');
-    html += `</div>`;
-  });
-  if (!total) {
-    html = `<div style="text-align:center;padding:60px 20px;color:var(--text-dim);">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;">No results for "${q}"</div>
+function renderBisGrid() {
+  const grid = document.getElementById('bis-grid');
+  const cost = parseFloat(document.getElementById('bis-cost').value) || 0;
+  const mkR = parseFloat(document.getElementById('bis-mk-retail').value) || 50;
+  const mkB = parseFloat(document.getElementById('bis-mk-bulk').value) || 30;
+  const catId = document.getElementById('bis-cat').value;
+  const sub = document.getElementById('bis-sub').value;
+
+  grid.innerHTML = _bisProducts.map((p, i) => {
+    const thumb = (p.thumbnail || '').replace(/'/g, '%27');
+    const guess = typeof guessCategory !== 'undefined' ? guessCategory(p.name, '') : null;
+    const autoCat = guess ? guess.catId : catId;
+    const autoSub = guess ? guess.sub : sub;
+    const catOptions = CATEGORIES.map(c => `<option value="${c.id}" ${c.id === autoCat ? 'selected' : ''}>${c.icon} ${c.label}</option>`).join('');
+    return `<div class="bis-row" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.04);">
+      <input type="checkbox" class="bis-cb" data-i="${i}" checked onchange="updateBisImportBtn()" style="width:16px;height:16px;accent-color:var(--gold);flex-shrink:0;">
+      <img src="${thumb}" style="width:64px;height:64px;object-fit:cover;background:#222;flex-shrink:0;" onerror="this.style.opacity='0.2'">
+      <div style="flex:1;min-width:0;">
+        <input class="bis-name" data-i="${i}" value="${(p.name || '').replace(/"/g, '&quot;')}" style="width:100%;background:transparent;border:1px solid rgba(255,255,255,0.08);color:var(--off-white);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.5px;padding:4px 8px;outline:none;">
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <select class="bis-row-cat" data-i="${i}" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text-dim);font-size:10px;padding:2px 6px;outline:none;cursor:pointer;">${catOptions}</select>
+          <a href="${(p.detailUrl || '#')}" target="_blank" style="color:var(--text-dim);font-size:10px;text-decoration:none;padding:2px 6px;flex-shrink:0;" title="Open supplier page">🔗</a>
+        </div>
+      </div>
     </div>`;
-  }
-  document.getElementById('search-results').innerHTML = html;
+  }).join('');
 }
 
-// ── SORT ─────────────────────────────────────────────────
-function setSort(catId, val) {
-  activeSort[catId] = val;
-  document.getElementById(`grid-${catId}`).innerHTML = renderSections(catId);
+function bisSelectAll() {
+  document.querySelectorAll('.bis-cb').forEach(cb => { cb.checked = true; });
+  updateBisImportBtn();
+}
+
+function bisSelectNone() {
+  document.querySelectorAll('.bis-cb').forEach(cb => { cb.checked = false; });
+  updateBisImportBtn();
+}
+
+function updateBisImportBtn() {
+  const count = document.querySelectorAll('.bis-cb:checked').length;
+  document.getElementById('bis-import-btn').textContent = `Import ${count} Selected`;
+}
+
+async function bulkImport() {
+  const checked = document.querySelectorAll('.bis-cb:checked');
+  if (!checked.length) return;
+
+  const catId = document.getElementById('bis-cat').value;
+  const sub = document.getElementById('bis-sub').value;
+  const cost = parseFloat(document.getElementById('bis-cost').value) || 0;
+  const mkR = parseFloat(document.getElementById('bis-mk-retail').value) || 50;
+  const mkB = parseFloat(document.getElementById('bis-mk-bulk').value) || 30;
+  const progress = document.getElementById('bis-progress');
+  progress.style.display = '';
+
+  let done = 0, failed = 0;
+  for (const cb of checked) {
+    const i = parseInt(cb.dataset.i, 10);
+    const p = _bisProducts[i];
+    const nameEl = document.querySelector(`.bis-name[data-i="${i}"]`);
+    const name = nameEl ? nameEl.value.trim() : p.name;
+    const catEl = document.querySelector(`.bis-row-cat[data-i="${i}"]`);
+    const rowCatId = catEl ? catEl.value : catId;
+    const cat = CATEGORIES.find(c => c.id === rowCatId);
+
+    const item = {
+      name, desc: '',
+      price: cost ? (cost * (1 + mkR / 100)).toFixed(2) : '',
+      bulkPrice: cost ? (cost * (1 + mkB / 100)).toFixed(2) : '',
+      imgs: [p.thumbnail], supplierLink: p.detailUrl,
+      icon: cat ? cat.icon : '🏷️', badge: '', sizes: '', por: false, sub,
+    };
+
+    try {
+      const res = await fetch('/api/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+        body: JSON.stringify({ category: rowCatId, sub, data: item }),
+      });
+      if (res.ok) {
+        const j = await res.json();
+        item.id = j.id;
+        if (!catalog[rowCatId]) catalog[rowCatId] = [];
+        catalog[rowCatId].push(item);
+        done++;
+      } else { failed++; }
+    } catch { failed++; }
+    progress.textContent = `Importing... ${done + failed}/${checked.length} (${done} ok, ${failed} failed)`;
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  progress.textContent = `✓ Done! ${done} imported` + (failed ? `, ${failed} failed` : '');
+  updateTotalCount();
+  refreshPage(catId);
+  switchCat(catId);
+  setTimeout(() => closeBulkImportModal(), 2000);
 }
 
 // ── IMPORT VIA URL PARAMS ─────────────────────────────────
@@ -2076,7 +2103,7 @@ async function saveImportedItem(){
   try{
     const res = await fetch('/api/items', { method: 'POST', headers: {'Content-Type':'application/json','x-admin-token': token}, body: JSON.stringify(payload) });
     const j = await res.json();
-    if(j && j.id){ const modal = document.getElementById('import-modal'); if(modal) modal.remove(); await loadCatalog(); buildPages(); updateTotalCount(); }
+    if(j && j.id){ const modal = document.getElementById('import-modal'); if(modal) modal.remove(); await loadCatalog(); updateTotalCount(); htmx.ajax('GET', '/catalog/' + (window.activeCat || 'mens'), '#grid-container'); }
     else alert('Import failed');
   }catch(e){ alert('Import save failed'); }
 }
