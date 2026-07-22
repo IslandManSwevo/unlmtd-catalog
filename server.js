@@ -180,6 +180,10 @@ async function initDB() {
       updated_at TIMESTAMP DEFAULT NOW()
     );
   `);
+
+  // Cart checkout: structured line items + link back to the customers CRM record
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;`);
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL;`);
 }
 
 // Cleanup expired admin sessions
@@ -392,6 +396,60 @@ function normalizeCode(code) {
   return String(code || '').trim().toUpperCase();
 }
 
+// Generate the next UNL-YYYY-NNNN order code for the current year
+async function generateOrderCode() {
+  const year = new Date().getFullYear();
+  const r = await pool.query(
+    `SELECT code FROM orders WHERE code LIKE $1 ORDER BY code DESC LIMIT 1`,
+    [`UNL-${year}-%`]
+  );
+  let seq = 1;
+  if (r.rows.length) {
+    const m = r.rows[0].code.match(/UNL-\d{4}-(\d+)/);
+    if (m) seq = parseInt(m[1], 10) + 1;
+  }
+  return `UNL-${year}-${String(seq).padStart(4, '0')}`;
+}
+
+// Normalize a phone number to the digits-only format used by customers.whatsapp
+function normalizePhone(raw) {
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 10) digits = '1' + digits; // assume Bahamas/NANP local number
+  return digits;
+}
+
+// Short one-line summary for orders.summary (feeds the admin Orders list + /api/track)
+function buildOrderSummary(items, hasPOR, subtotal) {
+  const parts = items.map(l => `${l.qty}x ${l.name}${l.size ? ' (' + l.size + ')' : ''}`);
+  let s = parts.join(', ');
+  s += hasPOR ? ` — $${subtotal.toFixed(2)}+ BSD` : ` — $${subtotal.toFixed(2)} BSD`;
+  return s;
+}
+
+// Full multi-line order recap used as the pre-filled WhatsApp confirmation message
+function buildWhatsAppMessage(code, customer, items, subtotal, hasPOR) {
+  const lines = items.map(l =>
+    `• ${l.name}${l.size ? ' (Size ' + l.size + ')' : ''} x${l.qty} — ${l.por ? 'Contact for Price' : '$' + (l.price * l.qty).toFixed(2) + ' BSD'}`
+  );
+  return [
+    `Hi! I'd like to place an order — Ref: *${code}*`,
+    '',
+    '*Order Summary:*',
+    ...lines,
+    '',
+    hasPOR ? `Subtotal: $${subtotal.toFixed(2)} BSD (+ item(s) priced on request)` : `Total: $${subtotal.toFixed(2)} BSD`,
+    '',
+    '*Customer Details:*',
+    `Name: ${customer.name}`,
+    `Phone: ${customer.phone}`,
+    customer.email ? `Email: ${customer.email}` : null,
+    (customer.address || customer.city) ? `Address: ${[customer.address, customer.city].filter(Boolean).join(', ')}` : null,
+    customer.notes ? `Notes: ${customer.notes}` : null,
+    '',
+    'Please confirm payment + delivery details. Thank you!',
+  ].filter(Boolean).join('\n');
+}
+
 // Public: look up an order by its shipping code (no auth)
 app.get('/api/track/:code', async (req, res) => {
   const code = normalizeCode(req.params.code);
@@ -472,6 +530,85 @@ app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('DELETE /api/orders error', err.message);
     return res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// Public: submit an in-app cart checkout as a structured order request (no payment collection)
+app.post('/api/checkout', async (req, res) => {
+  const { customer, items } = req.body || {};
+  if (!customer || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Missing customer or items' });
+  }
+
+  const phone = normalizePhone(customer.phone);
+  const name  = String(customer.name || '').trim();
+  if (!phone || !name) return res.status(400).json({ error: 'Name and phone are required' });
+
+  try {
+    // Look up authoritative item data server-side — never trust client-submitted price/soldOut
+    const ids = items.map(l => parseInt(l.id, 10)).filter(Boolean);
+    const r = await pool.query('SELECT id, data FROM items WHERE id = ANY($1::int[])', [ids]);
+    const byId = new Map(r.rows.map(row => [row.id, row.data]));
+
+    const removed = [];
+    const lines = [];
+    for (const l of items) {
+      const id = parseInt(l.id, 10);
+      const data = byId.get(id);
+      const qty = Math.max(1, Math.min(999, parseInt(l.qty, 10) || 1));
+      if (!data) { removed.push({ id, reason: 'not found' }); continue; }
+      if (data.soldOut) { removed.push({ id, name: data.name, reason: 'sold out' }); continue; }
+      lines.push({
+        id, name: data.name, price: parseFloat(data.price) || 0,
+        bulkPrice: parseFloat(data.bulkPrice) || 0, por: !!data.por,
+        size: String(l.size || '').trim(), qty,
+      });
+    }
+    if (lines.length === 0) return res.status(400).json({ error: 'No valid items in cart', removed });
+
+    const hasPOR   = lines.some(l => l.por);
+    const subtotal = lines.reduce((s, l) => s + (l.por ? 0 : l.price * l.qty), 0);
+
+    // Upsert customer (same table/pattern as the WhatsApp bot's handleIncoming, but checkout data wins)
+    const custRes = await pool.query(
+      `INSERT INTO customers (whatsapp, name, email, address, city, notes)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (whatsapp) DO UPDATE SET
+         name=COALESCE(EXCLUDED.name, customers.name),
+         email=COALESCE(EXCLUDED.email, customers.email),
+         address=COALESCE(EXCLUDED.address, customers.address),
+         city=COALESCE(EXCLUDED.city, customers.city),
+         notes=COALESCE(EXCLUDED.notes, customers.notes),
+         updated_at=NOW()
+       RETURNING *`,
+      [phone, name || null, customer.email || null, customer.address || null, customer.city || null, customer.notes || null]
+    );
+    const cust = custRes.rows[0];
+    await syncCustomerToSheets(cust);
+
+    // Create order, retrying on the rare order-code collision
+    const summary = buildOrderSummary(lines, hasPOR, subtotal);
+    let order;
+    for (let attempt = 0; attempt < 5 && !order; attempt++) {
+      const code = await generateOrderCode();
+      try {
+        const ins = await pool.query(
+          `INSERT INTO orders (code, customer, summary, items, customer_id, stage)
+           VALUES ($1,$2,$3,$4,$5,0) RETURNING id, code`,
+          [code, name, summary, JSON.stringify(lines), cust.id]
+        );
+        order = ins.rows[0];
+      } catch (e) { if (e.code !== '23505') throw e; }
+    }
+    if (!order) return res.status(500).json({ error: 'Failed to generate order code, try again' });
+
+    await syncOrderToSheets({ code: order.code, customer: name, summary, stage: 0 });
+
+    const waMessage = buildWhatsAppMessage(order.code, { ...customer, phone }, lines, subtotal, hasPOR);
+    return res.status(201).json({ code: order.code, orderId: order.id, summary, waMessage, removed });
+  } catch (err) {
+    console.error('POST /api/checkout error', err.message);
+    return res.status(500).json({ error: 'Checkout failed' });
   }
 });
 
@@ -922,7 +1059,7 @@ function renderProductCard(item, catId) {
     </div>
     <div class="${actionsClass}" onclick="event.stopPropagation()">
       <a class="card-action-btn btn-wa" href="${waUrl}" target="_blank">📲 WhatsApp</a>
-      <button class="card-action-btn btn-copy" onclick="copyItem(this)">📋 Copy</button>
+      <button class="card-action-btn btn-cart" onclick="addToCart(this)">🛒 Add to Cart</button>
       ${supplierBtn}
     </div>
   </div>`;
