@@ -42,6 +42,27 @@ async function go(){
 
     const itemsAfter = await (await fetch(URL + '/api/items')).json();
     out('GET /api/items (after)', itemsAfter);
+
+    const checkoutRes = await fetch(URL + '/api/checkout', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        customer: { name: 'Smoke Test', phone: '12425550100', email: 'smoke@example.com', city: 'Nassau', address: '123 Test Rd', notes: 'smoke test order' },
+        items: [{ id, qty: 2, size: 'M' }],
+      })
+    });
+    const checkoutJson = await checkoutRes.json();
+    out('POST /api/checkout', checkoutJson);
+    if(!/^UNL-\d{4}-\d{4}$/.test(checkoutJson.code || '')) throw new Error('Unexpected order code format: ' + checkoutJson.code);
+    if(!checkoutJson.orderId) throw new Error('Checkout did not return an orderId');
+
+    const trackJson = await (await fetch(URL + '/api/track/' + checkoutJson.code)).json();
+    out('GET /api/track/:code', trackJson);
+    if(trackJson.stage !== 0) throw new Error('Expected new checkout order at stage 0, got ' + trackJson.stage);
+
+    const deleteOrderRes = await fetch(URL + '/api/orders/' + checkoutJson.orderId, {
+      method: 'DELETE', headers: {'x-admin-token': token}
+    });
+    out('DELETE /api/orders/:id (checkout cleanup)', await deleteOrderRes.json());
   }catch(err){
     console.error('ERROR', err);
     process.exitCode = 1;

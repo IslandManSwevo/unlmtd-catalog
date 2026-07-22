@@ -194,11 +194,26 @@
   .card-action-btn { flex: 1; padding: 8px 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; border: none; cursor: pointer; transition: all 0.18s; text-align: center; white-space: nowrap; text-decoration: none; display: inline-block; }
   .btn-wa { background: #25D366; color: #000; }
   .btn-wa:hover { background: #1ebe5a; }
-  .btn-copy { background: var(--mid); color: var(--text-mid); border: 1px solid rgba(255,255,255,0.08); }
-  .btn-copy:hover { border-color: var(--gold); color: var(--gold); }
-  .btn-copy.copied { background: rgba(201,168,76,0.15); color: var(--gold); border-color: var(--gold); }
+  .btn-cart { background: var(--mid); color: var(--text-mid); border: 1px solid rgba(255,255,255,0.08); }
+  .btn-cart:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-cart.added { background: rgba(201,168,76,0.15); color: var(--gold); border-color: var(--gold); }
   .btn-supplier { background: transparent; color: var(--text-dim); border: 1px solid rgba(255,255,255,0.08); flex: 0 0 auto; padding: 8px 10px; }
   .btn-supplier:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ── CART ── */
+  #cart-badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 6px; border-radius: 10px; background: var(--gold); color: var(--black); font-size: 11px; font-weight: 700; text-align: center; }
+  .cart-line { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .cart-line-img { width: 52px; height: 52px; object-fit: cover; flex-shrink: 0; background: var(--mid); }
+  .cart-line-info { flex: 1; min-width: 0; }
+  .cart-line-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; color: var(--off-white); }
+  .cart-line-meta { font-size: 11px; color: var(--text-dim); margin-top: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .cart-qty-input { width: 40px; text-align: center; background: var(--black); border: 1px solid var(--border); color: var(--off-white); font-family: 'Barlow Condensed', sans-serif; padding: 3px; }
+  .cart-size-input { width: 64px; background: var(--black); border: 1px solid var(--border); color: var(--off-white); font-size: 11px; padding: 3px 4px; }
+  .cart-line-remove { color: rgba(220,100,100,0.8); cursor: pointer; font-size: 14px; padding: 4px 8px; background: none; border: none; }
+  .cart-line-remove:hover { color: rgb(220,100,100); }
+  .cart-line-price { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; color: var(--gold); white-space: nowrap; }
+  .cart-subtotal-row { display: flex; justify-content: space-between; align-items: center; padding-top: 14px; font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; color: var(--off-white); }
+  .cart-por-note { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 
   /* ── BULK PRICE BADGE ── */
   .bulk-price-tag { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); padding: 2px 7px; margin-top: 4px; display: inline-block; }
@@ -388,7 +403,7 @@
     <button class="admin-btn" id="bookmarklet-btn" onclick="openBookmarkletModal()" style="display:none;">📥 Importer</button>
     <button class="admin-btn" id="bulkimport-btn" onclick="openBulkImportModal()" style="display:none;">📦 Bulk Import</button>
     <button class="admin-btn" id="admin-toggle-btn" onclick="toggleAdminPanel()">⚙ Admin</button>
-    <a class="whatsapp-btn" href="https://wa.me/12427270271" target="_blank">📲 Order Now</a>
+    <button class="whatsapp-btn" id="cart-btn" onclick="openCartModal()">🛒 Cart<span id="cart-badge">0</span></button>
   </div>
 </div>
 
@@ -609,6 +624,49 @@
   </div>
 </div>
 
+<!-- CART DRAWER MODAL (customer) -->
+<div class="modal-backdrop" id="cart-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeCartModal()" x-on:click.self="closeCartModal()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:520px;" x-show="open" x-transition.duration.150ms>
+    <div class="modal-header">
+      <div class="modal-title">🛒 YOUR CART</div>
+      <button class="modal-close" onclick="closeCartModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="cart-lines"></div>
+      <div id="cart-subtotal"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="clearCart()">Clear Cart</button>
+      <button class="btn-primary" onclick="openCheckoutModal()">Checkout</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHECKOUT MODAL (customer) -->
+<div class="modal-backdrop" id="checkout-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeCheckoutModal()" x-on:click.self="closeCheckoutModal()" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:460px;" x-show="open" x-transition.duration.150ms>
+    <div class="modal-header">
+      <div class="modal-title">CHECKOUT</div>
+      <button class="modal-close" onclick="closeCheckoutModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group"><label class="field-label">Full Name *</label><input class="field-input" id="checkout-name" type="text" autocomplete="name"></div>
+      <div class="field-group"><label class="field-label">WhatsApp Number *</label><input class="field-input" id="checkout-phone" type="tel" placeholder="e.g. 242 555 1234" autocomplete="tel"></div>
+      <div class="field-group"><label class="field-label">Email</label><input class="field-input" id="checkout-email" type="email" autocomplete="email"></div>
+      <div class="field-row">
+        <div class="field-group"><label class="field-label">City</label><input class="field-input" id="checkout-city" type="text"></div>
+        <div class="field-group"><label class="field-label">Address</label><input class="field-input" id="checkout-address" type="text"></div>
+      </div>
+      <div class="field-group"><label class="field-label">Notes (optional)</label><input class="field-input" id="checkout-notes" type="text"></div>
+      <div class="login-error" id="checkout-error"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeCheckoutModal()">Back to Cart</button>
+      <button class="btn-primary" id="checkout-submit-btn" onclick="submitCheckout()">Place Order &amp; WhatsApp Us</button>
+    </div>
+  </div>
+</div>
+
 <!-- TRACK ORDER MODAL (customer) -->
 <div class="modal-backdrop" id="track-modal" x-data="{open:false}" x-show="open" x-cloak x-transition.opacity.duration.150ms x-on:keydown.escape.window="closeTrackModal()" x-on:click.self="closeTrackModal()" role="dialog" aria-modal="true">
   <div class="modal" style="max-width:460px;" x-show="open" x-transition.duration.150ms>
@@ -819,6 +877,7 @@ let activeSort    = {};
 let editingCat    = null;
 let editingItemId = null;
 let adminToken    = sessionStorage.getItem('unlmtd_admin_token') || null;
+let cart          = [];
 
 // ── MODAL / DROPDOWN HELPERS (Alpine-driven) ─────────────
 function setModalOpen(id, val) {
@@ -974,6 +1033,8 @@ document.addEventListener('DOMContentLoaded', function() {
 // ── INIT ──────────────────────────────────────────────────
 async function init() {
   CATEGORIES.forEach(c => { activeSub[c.id] = null; activeSort[c.id] = ''; });
+  loadCart();
+  updateCartBadge();
 
   // Validate stored token
   if (adminToken) {
@@ -1078,22 +1139,170 @@ function switchCat(catId) {
   htmx.ajax('GET', '/catalog/' + catId, '#grid-container');
 }
 
-// ── COPY ITEM ─────────────────────────────────────────────
-function copyItem(btn) {
+// ── CART ──────────────────────────────────────────────────
+function cartKey(id, size) { return id + '::' + (size || ''); }
+
+function loadCart() {
+  try { cart = JSON.parse(localStorage.getItem('unlmtd_cart') || '[]'); } catch { cart = []; }
+}
+function persistCart() {
+  localStorage.setItem('unlmtd_cart', JSON.stringify(cart));
+  updateCartBadge();
+}
+function cartCount()    { return cart.reduce((s, l) => s + l.qty, 0); }
+function cartSubtotal() { return cart.reduce((s, l) => s + (l.por ? 0 : l.price * l.qty), 0); }
+function cartHasPOR()   { return cart.some(l => l.por); }
+function updateCartBadge() {
+  const el = document.getElementById('cart-badge');
+  if (el) el.textContent = cartCount();
+}
+
+function addToCart(btn) {
   const card = btn.closest('.product-card');
   if (!card || !card.dataset.item) return;
   const item = JSON.parse(card.dataset.item.replace(/&quot;/g, '"'));
-  let text = `*${item.name || ''}*\n${item.desc || ''}`;
-  if (!item.por && item.price) text += `\nPrice: $${item.price} BSD`;
-  if (item.bulkPrice)          text += `\nBulk Price: $${item.bulkPrice} BSD`;
-  if (item.sizes)              text += `\nSizes: ${item.sizes}`;
-  text += `\n\nTo order, message us on WhatsApp! 📲`;
-
-  navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = '✅ Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 2000);
+  if (item.soldOut) return;
+  const size = (item.sizes || '').split(/[·,]/)[0]?.trim() || '';
+  const key = cartKey(item.id, size);
+  const existing = cart.find(l => cartKey(l.id, l.size) === key);
+  if (existing) existing.qty += 1;
+  else cart.push({
+    id: item.id, name: item.name, price: parseFloat(item.price) || 0,
+    bulkPrice: parseFloat(item.bulkPrice) || 0, por: !!item.por,
+    img: (item.imgs && item.imgs[0]) || item.img || '', sizes: item.sizes || '', size, qty: 1,
   });
+  persistCart();
+  const old = btn.textContent;
+  btn.textContent = '✅ Added';
+  btn.classList.add('added');
+  setTimeout(() => { btn.textContent = old; btn.classList.remove('added'); }, 1200);
+}
+
+function removeCartLine(key) {
+  cart = cart.filter(l => cartKey(l.id, l.size) !== key);
+  persistCart();
+  renderCartDrawer();
+}
+function updateCartQty(key, qty) {
+  const l = cart.find(x => cartKey(x.id, x.size) === key);
+  if (l) l.qty = Math.max(1, parseInt(qty, 10) || 1);
+  persistCart();
+  renderCartDrawer();
+}
+function updateCartSize(key, newSize) {
+  const l = cart.find(x => cartKey(x.id, x.size) === key);
+  if (l) l.size = newSize;
+  persistCart();
+  renderCartDrawer();
+}
+function clearCart() {
+  cart = [];
+  persistCart();
+  renderCartDrawer();
+}
+
+function openCartModal() {
+  renderCartDrawer();
+  setModalOpen('cart-modal', true);
+}
+function closeCartModal() {
+  setModalOpen('cart-modal', false);
+}
+
+function openCheckoutModal() {
+  if (!cart.length) return;
+  document.getElementById('checkout-error').textContent = '';
+  closeCartModal();
+  setModalOpen('checkout-modal', true);
+  setTimeout(() => document.getElementById('checkout-name').focus(), 100);
+}
+function closeCheckoutModal() {
+  setModalOpen('checkout-modal', false);
+}
+
+async function submitCheckout() {
+  if (!cart.length) return;
+  const name  = document.getElementById('checkout-name').value.trim();
+  const phone = document.getElementById('checkout-phone').value.trim();
+  const err   = document.getElementById('checkout-error');
+  if (!name || !phone) { err.textContent = 'Name and WhatsApp number are required.'; return; }
+  err.textContent = '';
+
+  const btn = document.getElementById('checkout-submit-btn');
+  const oldLabel = btn.textContent;
+  btn.textContent = 'Placing Order…';
+  btn.disabled = true;
+
+  const payload = {
+    customer: {
+      name, phone,
+      email:   document.getElementById('checkout-email').value.trim(),
+      address: document.getElementById('checkout-address').value.trim(),
+      city:    document.getElementById('checkout-city').value.trim(),
+      notes:   document.getElementById('checkout-notes').value.trim(),
+    },
+    items: cart.map(l => ({ id: l.id, qty: l.qty, size: l.size })),
+  };
+
+  try {
+    const res = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await res.json();
+    if (!res.ok) { err.textContent = j.error || 'Checkout failed.'; return; }
+
+    clearCart();
+    closeCheckoutModal();
+    window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(j.waMessage)}`, '_blank');
+
+    // Reuse the existing tracking modal to show the customer their new order immediately
+    openTrackModal();
+    document.getElementById('track-code-input').value = j.code;
+    submitTrack();
+  } catch {
+    err.textContent = 'Connection error. Try again.';
+  } finally {
+    btn.textContent = oldLabel;
+    btn.disabled = false;
+  }
+}
+
+function renderCartDrawer() {
+  const lines = document.getElementById('cart-lines');
+  const subtotalBox = document.getElementById('cart-subtotal');
+  if (!lines || !subtotalBox) return;
+  if (!cart.length) {
+    lines.innerHTML = `<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:30px 0;">Your cart is empty.</div>`;
+    subtotalBox.innerHTML = '';
+    return;
+  }
+  lines.innerHTML = cart.map(l => {
+    const key = cartKey(l.id, l.size);
+    const img = l.img
+      ? `<img class="cart-line-img" src="${proxyImgUrl(l.img)}" onerror="this.style.visibility='hidden'">`
+      : `<div class="cart-line-img"></div>`;
+    const priceHtml = l.por ? 'Contact for Price' : `$${(l.price * l.qty).toFixed(2)} BSD`;
+    return `<div class="cart-line">
+      ${img}
+      <div class="cart-line-info">
+        <div class="cart-line-name">${l.name}</div>
+        <div class="cart-line-meta">
+          <input class="cart-size-input" type="text" value="${l.size || ''}" placeholder="Size" onchange="updateCartSize('${key}', this.value)">
+          <input class="cart-qty-input" type="number" min="1" value="${l.qty}" onchange="updateCartQty('${key}', this.value)">
+        </div>
+      </div>
+      <div class="cart-line-price">${priceHtml}</div>
+      <button class="cart-line-remove" onclick="removeCartLine('${key}')">✕</button>
+    </div>`;
+  }).join('');
+
+  const subtotal = cartSubtotal();
+  subtotalBox.innerHTML = `
+    <div class="cart-subtotal-row"><span>Subtotal</span><span>$${subtotal.toFixed(2)} BSD${cartHasPOR() ? '+' : ''}</span></div>
+    ${cartHasPOR() ? `<div class="cart-por-note">Some item(s) are priced on request — we'll confirm total pricing on WhatsApp.</div>` : ''}
+  `;
 }
 
 // ── EDIT MODAL ────────────────────────────────────────────
