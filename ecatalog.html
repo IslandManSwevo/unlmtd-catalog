@@ -371,14 +371,24 @@
   .order-row-stage { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.25); padding: 4px 10px; white-space: nowrap; }
 
   @media (max-width: 600px) {
-    .topbar { padding: 0 16px; }
+    .topbar { padding: 10px 16px; height: auto; min-height: 64px; flex-wrap: wrap; row-gap: 8px; }
+    .topbar-right { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
     .topbar-meta { display: none; }
     .search-input { width: 110px; font-size: 11px; }
     .hero { padding: 36px 16px 28px; }
-    .nav-wrap { padding: 0 16px; }
+    .nav-wrap { position: static; top: auto; padding: 0 16px; }
     .main { padding: 28px 16px 60px; }
     .hero-stats { gap: 20px; }
     .catalog-footer { padding: 24px 16px; }
+
+    /* Cart drawer rows: keep everything within the modal's width, no forced overflow */
+    .cart-line-img { width: 40px; height: 40px; }
+    .cart-size-input { width: 48px; }
+    .cart-line-price { white-space: normal; text-align: right; font-size: 12px; }
+
+    /* Safety nets: let button/badge rows wrap instead of overflowing on narrow phones */
+    .modal-footer { flex-wrap: wrap; row-gap: 8px; }
+    .order-row { flex-wrap: wrap; }
   }
 </style>
 </head>
